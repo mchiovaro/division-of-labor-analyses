@@ -1,14 +1,16 @@
 ##### Process data #####
 #
-# Processing data for experiment 1. 
-# Trimming files which had restarts and behavior issues.
+# Processing data for experiment 1: 
+# - Trimming files which had restarts and behavior issues.
+# - Re-scaling player data to match on x-axis.
+# - Calculating relative phase and spliting into two time series for MdRQA.
 # 
 # Code by: @mchiovaro
-# Last updated: 2022_11_10
+# Last updated: 2022_12_28
 
 #### 1. set up ####
 rm(list=ls())
-setwd("./Documents/github/division-of-labor-analyses/exp_1-CogSci")
+setwd("./Documents/github/division-of-labor-analyses/exp_1")
 install.packages("tseriesChaos", "crqa","dplyr")
 install.packages("dplyr")
 library(tseriesChaos, crqa)
@@ -47,10 +49,11 @@ d31 <- read.csv("./data/raw/31-movementdata.csv", header=FALSE)
 # rename variables
 dfs <- list(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20, d21, d22, d23, d24, d26, d27, d31)
 changenames <- function(x) {
-  names(x) <- c("System.DateTime.Now","Time","ParticipantNumber","round_number","ie_condition","td_condition[round_number]","com_condition","size_condition","experiment_num","beeFree.transform.position.x","beeFree.transform.position.y","beeRestrict.transform.position.x","beeRestrict.transform.position.y")
+  names(x) <- c("System.DateTime.Now","Time","ParticipantNumber","round_number","ie_condition","td_condition[round_number]","com_condition","size_condition","practice_td","beeFree.transform.position.x","beeFree.transform.position.y","beeRestrict.transform.position.x","beeRestrict.transform.position.y")
   return(x)
 }
 dfs <- lapply(dfs, changenames)
+
 # split them out
 d1<-dfs[[1]]
 d2<-dfs[[2]]
@@ -83,7 +86,7 @@ d31<-dfs[[27]]
 #### 3. Check and trim data as needed ####
 
 # trim data with re-starts
-d2_filt <- d2 %>% filter(Time < 1157.48 | Time > 1267.94) # r6 started over - done
+d2_filt <- d2 %>% filter(Time < 1157.48 | Time > 1267.94) # r6 started over 
 # check if d6 was restarted in an actual round or just a practice round
 d6 %>% filter(d6$beeFree.transform.position.x == -3.25 &
                 d6$beeFree.transform.position.y == 0 &
@@ -96,36 +99,31 @@ d6 %>% filter(d6$beeFree.transform.position.x == -3.25 &
                    dplyr::lag(d6$beeRestrict.transform.position.y) != 0) &  
                 # if the previous row is the same round
                 d6$round_number == dplyr::lag(d6$round_number)) # produces no rows, so no actual restarts
-d8_filt <- d8 %>% filter(Time < 1804.40 | Time > 1857.54) # r5 restarted - done
-d9_filt <- d9 %>% filter(Time > 829.22) # HANDLE THIS LATER?? Filtering is fine here. r1 restarted # done. Not sure what the other note is about.
-d10_filt <- d10 %>% filter(round_number != 4) # r4 wasn't restarted in time but there was a behavior error - removing entire round # done
-d12_filt <- d12 %>% filter(Time < 682.46 | Time > 697.94) #r1 restarted # done
-d12_filt <- d12_filt %>% filter(Time < 945.5200 | Time > 952.3200) # r3 restarted # done
-d13_filt <- d13 %>% filter(Time < 970.0400 | Time > 1060.30) # r1 restarted 2x # done
-d13_filt <- d13_filt %>% filter(Time < 1248.56 | Time > 1282.38) # r2 restarted 2x # done
-d13_filt <- d13_filt %>% filter(Time < 1562.12 | Time > 1564.94) # r5 restarted # done
-d15_filt <- d15 %>% filter(Time < 290.04 | Time > 311.90) # r1 restarted # done
+d8_filt <- d8 %>% filter(Time < 1804.40 | Time > 1857.54) # r5 restarted
+d9_filt <- d9 %>% filter(Time > 829.22) # HANDLE THIS LATER - Filtering is fine here. r1 restarted . Not sure what the other note is about.
+d10_filt <- d10 %>% filter(round_number != 4) # r4 wasn't restarted in time but there was a behavior error - removing entire round 
+d12_filt <- d12 %>% filter(Time < 682.46 | Time > 697.94) #r1 restarted
+d12_filt <- d12_filt %>% filter(Time < 945.5200 | Time > 952.3200) # r3 restarted
+d13_filt <- d13 %>% filter(Time < 970.0400 | Time > 1060.30) # r1 restarted 2x 
+d13_filt <- d13_filt %>% filter(Time < 1248.56 | Time > 1282.38) # r2 restarted 2x
+d13_filt <- d13_filt %>% filter(Time < 1562.12 | Time > 1564.94) # r5 restarted 
+d15_filt <- d15 %>% filter(Time < 290.04 | Time > 311.90) # r1 restarted 
 d15_filt <- d15 %>% filter(round_number != 5) #r5 removed entirely due to behavior issue
-d16_filt <- d16 %>% filter(round_number!=1) # r1 removed entirely due to participant misunderstanding instructions # done
-d17_filt <- d17 %>% filter(Time <  878.68 | Time > 888.74) # r2 restarted # done
-d17_filt <- d17_filt %>% filter(Time <  1126.80 | Time > 1216.88) # r4 restarted # done
-d17_filt <- d17_filt %>% filter(Time <  1431.46 | Time > 1491.60) # r6 restarted # done
-d19_filt <- d19 %>% filter(Time <  822.68 | Time > 887.6200) # r1 restarted # done
-d20_filt <- d20 %>% filter(Time <  631.86 | Time > 643.72) # r1 restarted # done
-d21_filt <- d21 %>% filter(!(Time >= 169.30 & Time <= 235.82 & round_number==1)) # r1 keeping first run through and removing second (because game crashed at second round) # done
-d21_filt <- d21_filt %>% filter(!(Time >= 829.12  & Time <= 865.42 & round_number==2)) # r2 glitched out # done
-d21_filt <- d21_filt %>% filter(!(Time >=  328.84 & Time <= 381.48 & round_number==3)) # r3 restarted # done
-d22_filt <- d22 %>% filter(Time <  451.68 | Time > 496.28) # r4 restarted # done
-d23_filt <- d23 %>% filter(Time <  960.9 | Time > 987.5200) # r3 restarted # done
-d24_filt <- d24 %>% filter(Time <  803.44 | Time > 891.82) # r1 restarted # done
-d26_filt <- d26 %>% filter(Time <  1166.96 | Time > 1195.18) # entire game restarted after r1 # done
-d26_filt <- d26_filt %>% filter(Time <  273.30 | Time > 320.10) # r3 restarted # done
-d26_filt <- d26_filt %>% filter(Time <  568.06 | Time > 585.06) # r6 restarted # done
-
-# # checking code
-# d_test <- d
-# d_test <- d_test %>% filter(round_number == 2)
-# d_test$lag <- d_test$Time - shift(d_test$Time, 1)
+d16_filt <- d16 %>% filter(round_number!=1) # r1 removed entirely due to participant misunderstanding instructions 
+d17_filt <- d17 %>% filter(Time <  878.68 | Time > 888.74) # r2 restarted 
+d17_filt <- d17_filt %>% filter(Time <  1126.80 | Time > 1216.88) # r4 restarted 
+d17_filt <- d17_filt %>% filter(Time <  1431.46 | Time > 1491.60) # r6 restarted 
+d19_filt <- d19 %>% filter(Time <  822.68 | Time > 887.6200) # r1 restarted 
+d20_filt <- d20 %>% filter(Time <  631.86 | Time > 643.72) # r1 restarted 
+d21_filt <- d21 %>% filter(!(Time >= 169.30 & Time <= 235.82 & round_number==1)) # r1 keeping first run through and removing second (because game crashed at second round) 
+d21_filt <- d21_filt %>% filter(!(Time >= 829.12  & Time <= 865.42 & round_number==2)) # r2 glitched out 
+d21_filt <- d21_filt %>% filter(!(Time >=  328.84 & Time <= 381.48 & round_number==3)) # r3 restarted 
+d22_filt <- d22 %>% filter(Time <  451.68 | Time > 496.28) # r4 restarted 
+d23_filt <- d23 %>% filter(Time <  960.9 | Time > 987.5200) # r3 restarted 
+d24_filt <- d24 %>% filter(Time <  803.44 | Time > 891.82) # r1 restarted 
+d26_filt <- d26 %>% filter(Time <  1166.96 | Time > 1195.18) # entire game restarted after r1 
+d26_filt <- d26_filt %>% filter(Time <  273.30 | Time > 320.10) # r3 restarted 
+d26_filt <- d26_filt %>% filter(Time <  568.06 | Time > 585.06) # r6 restarted 
 
 # bind data
 formatted_all <- rbind(d1, d2_filt, d3, d4, d5, 
@@ -138,95 +136,101 @@ formatted_all <- rbind(d1, d2_filt, d3, d4, d5,
                        d22_filt, d23_filt, d24_filt, 
                        d26_filt, d27, d31)
 
-# save the data
-write.table(formatted_all,
-            paste('./data/formatted/formatted_data.csv', sep = ''),
-            sep=',', row.names=FALSE)
-
-
-#### 2. generate velocity ####
-names(formatted_all) <- c("System.DateTime.Now","Time","dyad","round_number","ie_condition","td_condition","com_condition","size_condition","experiment_num","x1","y1","x2","y2")
+#### 4. Generate phase ####
+names(formatted_all) <- c("System.DateTime.Now","Time","dyad","round_number","ie_condition","td_condition","com_condition","size_condition","practice_td","x1","y1","x2","y2")
 data_prepped <- formatted_all %>% 
   group_by(dyad, round_number) %>%
   arrange(Time) %>%
-  mutate(velocity0 = as.numeric((x1-lag(x1))/.02)) %>%
-  mutate(velocity1 = as.numeric((x2-lag(x2))/.02)) %>%
+  mutate(velocity1 = as.numeric((x1-lag(x1))/.02)) %>% # calculate velocity to remove times where players are just working
+  mutate(velocity2 = as.numeric((x2-lag(x2))/.02)) %>% # calculate velocity to remove times where players are just working
   mutate(round_number = as.numeric(round_number)) %>%
   filter(!(x1==-3.25 & y1==0 & x2==3.25 & y2==0)) %>% # trim off the beginning before someone starts moving
-  filter(!(velocity0 == 0 & velocity1 == 0 & 
-             (dplyr::lead(velocity0) == 0 & dplyr::lead(velocity1) == 0))) %>% # remove where they are both just working
+  filter(!(velocity1 == 0 & velocity2 == 0 & 
+             (dplyr::lead(velocity1) == 0 & dplyr::lead(velocity2) == 0))) %>% # remove where they are both just working
+  mutate(timer = max(Time) - min(Time)) %>% # calculate time to complete each round
+  ungroup() %>%
   na.omit()
+# create new variables and rescale beeFree x locations to match the directions of beeRestrict
+data_prepped['rescale_free_x'] <- NA
+for(i in 1:nrow(data_prepped)){
+  if(data_prepped$x1[i] <= -.9) { data_prepped$rescale_free_x[i] = data_prepped$x1[i] + 6.5 
+  } else { data_prepped$rescale_free_x[i] = data_prepped$x1[i]
+  }  
+}
+# calculate phase and then split into two time series using trig functions
+data_prepped <- data_prepped %>% 
+  group_by(dyad, round_number) %>%
+  mutate(phase = as.numeric(rescale_free_x - x2)) %>% # calculate phase on x-axis
+  mutate(sin = sin(phase)) %>% 
+  mutate(cos = cos(phase)) %>%
+  mutate(dyad.round = paste(dyad, ".", round_number)) %>%
+  ungroup()
+
+#### 5. Create indicator for task switching (1 = switch; 2 = switch back; 0 = nothing) ####
+
+# create empty dataframe
+task_switches = data.frame(Time = numeric(),
+                  dyad = numeric(),
+                  round_number = numeric(),
+                  x1 = numeric(),
+                  x2 = numeric(),
+                  task_switch_free = numeric(),
+                  task_switch_restrict = numeric())
+
+# cycle through all rounds for each dyad
+rounds = split(data_prepped,list(data_prepped$dyad,data_prepped$round_number))
+
+# remove the rounds that were dropped due to errors
+rounds = rounds[c(-16, -91, -123)]
+
+# run through each round and mark switches
+for (round in names(rounds)){
+  
+  # pick out the data to identify task switches
+  data = dplyr::select(rounds[[round]], c(2,3,4,10,12))
+  data['task_switch_free'] <- NA
+  data['task_switch_restrict'] <- NA
+  
+  # sort data in ascending time
+  data <- data[order(data$Time),]
+
+  # for each line, check for a switch
+  for(i in 1:(nrow(data)-1)){
+    
+    if(data$x1[i] <= 0 & data$x1[i+1] >= 0) { # identify task switches for beeFree
+      data$task_switch_free[i] = 1
+    } else if (data$x1[i] >= 0 & data$x1[i+1] <= 0) { # identify switching back for beeFree
+      data$task_switch_free[i] = 2
+    } else { 
+      data$task_switch_free[i] = 0 
+    }
+   
+    if(data$x2[i] >= 0 & data$x2[i+1] <= 0) { # identify task switches for beeRestrict
+      data$task_switch_restrict[i] = 1
+    } else if(data$x2[i] <= 0 & data$x2[i+1] >= 0) { # identify switching back for beeRestrict
+      data$task_switch_restrict[i] = 2
+    } else {
+      data$task_switch_restrict[i] = 0
+    }
+
+  }
+  
+  # bind everything to data frame
+  task_switches = rbind.data.frame(task_switches,
+                                  data)
+  
+}
+
+# bind switching markers to original data frame
+data_prepped_final = data_prepped %>% left_join(task_switches,by=c("Time", "dyad", "round_number", "x1", "x2"))
+
+# check out the number of switches
+# switches <- data_prepped_final %>%
+#   filter(task_switch_free > 0 | task_switch_restrict > 0)
 
 # save data
-write.table(x = data_prepped,
-            file=paste0("./data/data_prepped.csv"),
+write.table(x = data_prepped_final,
+            file=paste0("./data/data_prepped-exp_1.csv"),
             sep=",",
             col.names=TRUE,
             row.names=FALSE)
- 
-# Don't need this because we do have things to compare this time!
-# #### 3. Create permuted time series ####
-# 
-# # create lists to loop through
-# dyad_list <- c(unique(data_prepped$dyad))
-# var_list <- c("velocity0", "velocity1")
-# 
-# for (i in dyad_list) {
-#   
-#   # create round counter (because one has missing round)
-#   tbl <- data_prepped %>% filter(dyad==i)
-#   round_list <- c(unique(tbl$round_number))
-# 
-#   for (j in round_list) {
-# 
-#     # take the subset of data we want
-#     tbl <- tbl %>% filter(round_number==j)
-# 
-#     for (k in var_list) {
-# 
-#       # create empty data frame
-#       shuffled_data = data.frame()
-# 
-#       # generate 1000 random time series and bind to rows
-#       for (a in 1:1000){
-#         shuffled <- sample_n(tbl = tbl[,c(k)],
-#                              size = nrow(tbl),
-#                              replace = FALSE)
-#         sample <- t(as.data.frame(shuffled))
-#         shuffled_data <- rbind(shuffled_data, sample)
-#       }
-# 
-#       # take the original time series and add it as a row
-#       original <- as.data.frame(tbl[,c(k)])
-#       original <- as.data.frame(t(original))
-#       shuffled_data <- rbind(shuffled_data, original)
-# 
-#       # check to see if we have 1001 distinct time series
-#       print(paste0("Total distinct shuffled time series for CRQA: ",
-#                    nrow(distinct(shuffled_data))))
-#       if(nrow(distinct(shuffled_data)) != 1001){
-#         print("WARNING: Duplicates in surrogate time series.")
-#         print("Unique rows:")
-#         print(sum(nrow(distinct(shuffled_data))))
-#       }
-# 
-#       # transform rows to columns for binding
-#       shuffled_data <- as.data.frame(t(shuffled_data))
-# 
-#       # remove real time series from shuffled data frame and combine with original data
-#       shuffled_data <- shuffled_data[c(1:1000)]
-#       tbl <- cbind(tbl, shuffled_data)
-# 
-#     }
-# 
-#     # save data
-#     write.table(x = tbl,
-#                 file=paste0("./data/shuffled/shuffled_data_", i,"_", j, ".csv"),
-#                 sep=",",
-#                 col.names=TRUE,
-#                 row.names=FALSE)
-# 
-#   }
-# 
-# }
-
