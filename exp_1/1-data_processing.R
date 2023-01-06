@@ -13,8 +13,11 @@ rm(list=ls())
 setwd("./Documents/github/division-of-labor-analyses/exp_1")
 install.packages("tseriesChaos", "crqa","dplyr")
 install.packages("dplyr")
+install.packages("scales")
 library(tseriesChaos, crqa)
 library(dplyr)
+library(scales)
+library(tidyr)
 set.seed(2022)
 
 #### 2. read in raw data  ####
@@ -136,7 +139,7 @@ formatted_all <- rbind(d1, d2_filt, d3, d4, d5,
                        d22_filt, d23_filt, d24_filt, 
                        d26_filt, d27, d31)
 
-#### 4. Generate phase ####
+#### 4. Generate velocity and timer and rescale free player x-axis ####
 names(formatted_all) <- c("System.DateTime.Now","Time","dyad","round_number","ie_condition","td_condition","com_condition","size_condition","practice_td","x1","y1","x2","y2")
 data_prepped <- formatted_all %>% 
   group_by(dyad, round_number) %>%
@@ -153,17 +156,143 @@ data_prepped <- formatted_all %>%
 # create new variables and rescale beeFree x locations to match the directions of beeRestrict
 data_prepped['rescale_free_x'] <- NA
 for(i in 1:nrow(data_prepped)){
-  if(data_prepped$x1[i] <= -.9) { data_prepped$rescale_free_x[i] = data_prepped$x1[i] + 6.5 
+  if(data_prepped$x1[i] <= 0) { data_prepped$rescale_free_x[i] = data_prepped$x1[i] + 6.5 
   } else { data_prepped$rescale_free_x[i] = data_prepped$x1[i]
   }  
 }
-# calculate phase and then split into two time series using trig functions
-data_prepped <- data_prepped %>% 
+
+
+
+
+
+# if the x value is between 0 and 5.6 and increasing from previous time stamp, scale it from 0 to 180
+# if the x value is between 0 and 5.6 and decreasing from previous time stamp, scale it from 180 to 360
+
+# maybe split it into it's own column for left vs right direction points, scale them, then merge the two columns together for each player
+# e.g.,
+# if() X-dplyr::lag(X) > 0 (but then what about when they aren't moving? they would have the same x for multiple time points, must figure out how to handle that)
+# newcol = x
+# newcol = rescale(newcol, to = c(0, 180))
+# if() X-dplyr::lag(X) < 0 (but then what about when they aren't moving? they would have the same x for multiple time points, must figure out how to handle that)
+# newcol2 = x
+# newcol2 = rescale(newcol2, to = c(180, 360))
+# merge the two columns, then fill the NAs with the previous time stamp?? or with a random value??
+
+
+# mutate(rescaled = rescale(XXX, to = c(0, 180))
+# mutate(rescaled = rescale(XXX, to = c(180, 360))
+
+
+
+
+#### 5. Identify directions of movement ####
+
+# create empty dataframe
+directions = data.frame(Time = numeric(),
+                        dyad = numeric(),
+                        round_number = numeric(),
+                        x1 = numeric(),
+                        x2 = numeric(),
+                        left_free = numeric(),
+                        right_free = numeric(),
+                        left_restrict = numeric(),
+                        right_restrict = numeric(),
+                        rescaled_free_right = numeric(),
+                        rescaled_free_left = numeric(),
+                        rescaled_restrict_right = numeric(),
+                        rescaled_restrict_left = numeric(),
+                        free_phase = numeric(),
+                        restrict_phase = numeric(),
+                        rel_phase = numeric(),
+                        sin = numeric(),
+                        cos = numeric(),
+                        dyad.round = character())
+
+# cycle through all rounds for each dyad
+rounds = split(data_prepped,list(data_prepped$dyad,data_prepped$round_number))
+
+# remove the rounds that were dropped due to errors
+rounds = rounds[c(-16, -91, -123)]
+
+# run through each round and mark switches
+for (round in names(rounds)){
+  
+  # pick out the data to identify task switches
+  data = dplyr::select(rounds[[round]], c(2,3,4,17,12))
+  data['left_free'] <- NA
+  data['right_free'] <- NA
+  data['left_restrict'] <- NA
+  data['right_restrict'] <- NA
+  
+  # sort data in ascending time
+  data <- data[order(data$Time),]
+  
+  # for each line, check for a switch
+  for(i in 1:(nrow(data)-1)){
+    
+    # check free player movement
+    if(data$rescale_free_x[i] - data$rescale_free_x[i+1] < 0) { 
+      data$right_free[i] = data$rescale_free_x[i] 
+      data$left_free[i] = NA
+    } else if(data$rescale_free_x[i] - data$rescale_free_x[i+1] > 0) {
+      data$left_free[i] = data$rescale_free_x[i]
+      data$right_free[i] = NA
+    } else {
+      data$right_free[i] = NA
+      data$left_free[i] = NA
+    }
+    
+    # check restrict player movement
+    if(data$x2[i] - data$x2[i+1] < 0) {
+      data$right_restrict[i] = data$x2[i]
+      data$left_restrict[i] = NA
+    }
+    else if(data$x2[i] - data$x2[i+1] > 0) {
+      data$left_restrict[i] = data$x2[i]
+      data$right_restrict[i] = NA
+    } else {
+      data$right_restrict[i] = NA
+      data$left_restrict[i] = NA
+    }
+    
+  }
+  
+  # rescale the data to be in degrees
+  data$rescaled_free_right = rescale(data$right_free, to = c(0, 180), from = range(.9, 5.6))
+  data$rescaled_free_left = rescale(data$left_free, to = c(360, 180), from = range(.9, 5.6))
+  data$rescaled_restrict_right = rescale(data$right_restrict, to = c(0, 180), from = range(.9, 5.6))
+  data$rescaled_restrict_left = rescale(data$left_restrict, to = c(360, 180), from = range(.9, 5.6))
+  
+  # for some reason .900000 isn't turning to 0 ?????
+  
+  # merge phases for each player to one column
+  data$free_phase <- coalesce(data$rescaled_free_left, data$rescaled_free_right)
+  data$restrict_phase <- coalesce(data$rescaled_restrict_left, data$rescaled_restrict_right)
+  
+  # fill in NAs with the previous phase (i.e., where they are currently stopped to work)
+  data <- data %>% 
+    fill(free_phase) %>% 
+    fill(restrict_phase) %>%
+    # calculate phase relationshio
+    mutate(rel_phase = free_phase - restrict_phase) %>%
+    drop_na(rel_phase) %>%
+    mutate(sin = sin(rel_phase)) %>%
+    mutate(cos = cos(rel_phase)) %>%
+    mutate(dyad.round = paste(dyad, ".", round_number)) %>%
+    ungroup()
+  
+  # bind everything to data frame
+  directions = rbind.data.frame(directions,
+                                   data)
+  
+}
+
+# bind switching markers to original data frame
+data_prepped_directions = data_prepped %>% 
+  left_join(directions,by=c("Time", "dyad", "round_number", "rescale_free_x", "x2")) %>%
   group_by(dyad, round_number) %>%
-  mutate(phase = as.numeric(rescale_free_x - x2)) %>% # calculate phase on x-axis
-  mutate(sin = sin(phase)) %>% 
-  mutate(cos = cos(phase)) %>%
-  mutate(dyad.round = paste(dyad, ".", round_number)) %>%
+  arrange('Time') %>%
+  drop_na(rel_phase) %>%
   ungroup()
 
 #### 5. Create indicator for task switching (1 = switch; 2 = switch back; 0 = nothing) ####
@@ -176,12 +305,6 @@ task_switches = data.frame(Time = numeric(),
                   x2 = numeric(),
                   task_switch_free = numeric(),
                   task_switch_restrict = numeric())
-
-# cycle through all rounds for each dyad
-rounds = split(data_prepped,list(data_prepped$dyad,data_prepped$round_number))
-
-# remove the rounds that were dropped due to errors
-rounds = rounds[c(-16, -91, -123)]
 
 # run through each round and mark switches
 for (round in names(rounds)){
@@ -222,11 +345,11 @@ for (round in names(rounds)){
 }
 
 # bind switching markers to original data frame
-data_prepped_final = data_prepped %>% left_join(task_switches,by=c("Time", "dyad", "round_number", "x1", "x2"))
+data_prepped_final = data_prepped_directions %>% left_join(task_switches,by=c("Time", "dyad", "round_number", "x1", "x2"))
 
 # check out the number of switches
-# switches <- data_prepped_final %>%
-#   filter(task_switch_free > 0 | task_switch_restrict > 0)
+switches <- data_prepped_final %>%
+  filter(task_switch_free > 0 | task_switch_restrict > 0)
 
 # save data
 write.table(x = data_prepped_final,
