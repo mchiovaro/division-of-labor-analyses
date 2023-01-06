@@ -3,16 +3,15 @@
 # Processing data for experiment 1: 
 # - Trimming files which had restarts and behavior issues.
 # - Re-scaling player data to match on x-axis.
-# - Calculating relative phase and spliting into two time series for MdRQA.
+# - Calculating relative phase and splitting into two time series for MdRQA.
 # 
 # Code by: @mchiovaro
-# Last updated: 2022_12_28
+# Last updated: 2022_01_06
 
 #### 1. set up ####
 rm(list=ls())
 setwd("./Documents/github/division-of-labor-analyses/exp_1")
 install.packages("tseriesChaos", "crqa","dplyr")
-install.packages("dplyr")
 install.packages("scales")
 library(tseriesChaos, crqa)
 library(dplyr)
@@ -161,30 +160,6 @@ for(i in 1:nrow(data_prepped)){
   }  
 }
 
-
-
-
-
-# if the x value is between 0 and 5.6 and increasing from previous time stamp, scale it from 0 to 180
-# if the x value is between 0 and 5.6 and decreasing from previous time stamp, scale it from 180 to 360
-
-# maybe split it into it's own column for left vs right direction points, scale them, then merge the two columns together for each player
-# e.g.,
-# if() X-dplyr::lag(X) > 0 (but then what about when they aren't moving? they would have the same x for multiple time points, must figure out how to handle that)
-# newcol = x
-# newcol = rescale(newcol, to = c(0, 180))
-# if() X-dplyr::lag(X) < 0 (but then what about when they aren't moving? they would have the same x for multiple time points, must figure out how to handle that)
-# newcol2 = x
-# newcol2 = rescale(newcol2, to = c(180, 360))
-# merge the two columns, then fill the NAs with the previous time stamp?? or with a random value??
-
-
-# mutate(rescaled = rescale(XXX, to = c(0, 180))
-# mutate(rescaled = rescale(XXX, to = c(180, 360))
-
-
-
-
 #### 5. Identify directions of movement ####
 
 # create empty dataframe
@@ -295,7 +270,7 @@ data_prepped_directions = data_prepped %>%
   drop_na(rel_phase) %>%
   ungroup()
 
-#### 5. Create indicator for task switching (1 = switch; 2 = switch back; 0 = nothing) ####
+#### 6. Create indicator for task switching (1 = switch; 2 = switch back; 0 = nothing) ####
 
 # create empty dataframe
 task_switches = data.frame(Time = numeric(),
