@@ -102,8 +102,8 @@ d6 %>% filter(d6$beeFree.transform.position.x == -3.25 &
                 # if the previous row is the same round
                 d6$round_number == dplyr::lag(d6$round_number)) # produces no rows, so no actual restarts
 d8_filt <- d8 %>% filter(Time < 1804.40 | Time > 1857.54) # r5 restarted
-d9_filt <- d9 %>% filter(Time > 829.22) # HANDLE THIS LATER - Filtering is fine here. r1 restarted . Not sure what the other note is about.
-d10_filt <- d10 %>% filter(round_number != 4) # r4 wasn't restarted in time but there was a behavior error - removing entire round 
+d9_filt <- d9 %>% filter(Time > 829.22) # r1 restarted
+d10_filt <- d10 %>% filter(round_number != 4) # r4 removed entirely due to behavior error
 d12_filt <- d12 %>% filter(Time < 682.46 | Time > 697.94) #r1 restarted
 d12_filt <- d12_filt %>% filter(Time < 945.5200 | Time > 952.3200) # r3 restarted
 d13_filt <- d13 %>% filter(Time < 970.0400 | Time > 1060.30) # r1 restarted 2x 
@@ -128,15 +128,10 @@ d26_filt <- d26_filt %>% filter(Time <  273.30 | Time > 320.10) # r3 restarted
 d26_filt <- d26_filt %>% filter(Time <  568.06 | Time > 585.06) # r6 restarted 
 
 # bind data
-formatted_all <- rbind(d1, d2_filt, d3, d4, d5, 
-                       d6, # corrupt file
-                       d7, d8_filt, d9_filt, d10_filt,
-                       d11, d12_filt, d13_filt, d14, d15_filt, 
-                       d16_filt, # corrupt file
-                       d17_filt, d18, d19_filt, d20_filt, 
-                       d21_filt, # corrupt file
-                       d22_filt, d23_filt, d24_filt, 
-                       d26_filt, d27, d31)
+formatted_all <- rbind(d1, d2_filt, d3, d4, d5, d6, d7, d8_filt, d9_filt, 
+                       d10_filt, d11, d12_filt, d13_filt, d14, d15_filt, 
+                       d16_filt, d17_filt, d18, d19_filt, d20_filt, d21_filt, 
+                       d22_filt, d23_filt, d24_filt, d26_filt, d27, d31)
 
 #### 4. Generate velocity and timer and rescale free player x-axis ####
 names(formatted_all) <- c("System.DateTime.Now","Time","dyad","round_number","ie_condition","td_condition","com_condition","size_condition","practice_td","x1","y1","x2","y2")
@@ -191,8 +186,6 @@ rounds = rounds[c(-16, -91, -123)]
 
 # run through each round and mark switches
 for (round in names(rounds)){
-  
-  round = 1.1
   
   # pick out the data to identify task switches
   data = dplyr::select(rounds[[round]], c(2,3,4,17,12))
