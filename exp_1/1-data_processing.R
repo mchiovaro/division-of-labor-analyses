@@ -192,6 +192,8 @@ rounds = rounds[c(-16, -91, -123)]
 # run through each round and mark switches
 for (round in names(rounds)){
   
+  round = 1.1
+  
   # pick out the data to identify task switches
   data = dplyr::select(rounds[[round]], c(2,3,4,17,12))
   data['left_free'] <- NA
@@ -237,8 +239,6 @@ for (round in names(rounds)){
   data$rescaled_free_left = rescale(data$left_free, to = c(360, 180), from = range(.9, 5.6))
   data$rescaled_restrict_right = rescale(data$right_restrict, to = c(0, 180), from = range(.9, 5.6))
   data$rescaled_restrict_left = rescale(data$left_restrict, to = c(360, 180), from = range(.9, 5.6))
-  
-  # for some reason .900000 isn't turning to 0 ?????
   
   # merge phases for each player to one column
   data$free_phase <- coalesce(data$rescaled_free_left, data$rescaled_free_right)
