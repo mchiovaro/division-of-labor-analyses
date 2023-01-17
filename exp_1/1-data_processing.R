@@ -150,7 +150,7 @@ data_prepped <- formatted_all %>%
 # create new variables and rescale beeFree x locations to match the directions of beeRestrict
 data_prepped['rescale_free_x'] <- NA
 for(i in 1:nrow(data_prepped)){
-  if(data_prepped$x1[i] <= 0) { data_prepped$rescale_free_x[i] = data_prepped$x1[i] + 6.5 
+  if(data_prepped$x1[i] <= -.9) { data_prepped$rescale_free_x[i] = data_prepped$x1[i] + 6.5 
   } else { data_prepped$rescale_free_x[i] = data_prepped$x1[i]
   }  
 }
@@ -315,9 +315,9 @@ for (round in names(rounds)){
 # bind switching markers to original data frame
 data_prepped_final = data_prepped_directions %>% left_join(task_switches,by=c("Time", "dyad", "round_number", "x1", "x2"))
 
-# check out the number of switches
-switches <- data_prepped_final %>%
-  filter(task_switch_free > 0 | task_switch_restrict > 0)
+# # check out the number of switches
+# switches <- data_prepped_final %>%
+#   filter(task_switch_free > 0 | task_switch_restrict > 0)
 
 # save data
 write.table(x = data_prepped_final,
