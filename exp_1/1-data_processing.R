@@ -193,6 +193,8 @@ for (round in names(rounds)){
   data['right_free'] <- NA
   data['left_restrict'] <- NA
   data['right_restrict'] <- NA
+  data['transition_free'] <- NA
+  data['transition_restrict'] <- NA
   
   # sort data in ascending time
   data <- data[order(data$Time),]
@@ -200,26 +202,29 @@ for (round in names(rounds)){
   # for each line, check for a switch
   for(i in 1:(nrow(data)-1)){
     
-    # check free player movement
-    if(data$rescale_free_x[i] - data$rescale_free_x[i+1] < 0) { 
+    # if moving right and between .9 and 5.6, mark as right free movement
+    if((data$rescale_free_x[i] - data$rescale_free_x[i+1] < 0) & data$rescale_free_x[i] <= 5.6 & data$rescale_free_x[i+1] <= 5.6 & data$rescale_free_x[i] >= .9 & data$rescale_free_x[i+1] >= .9) { 
       data$right_free[i] = data$rescale_free_x[i] 
-      data$left_free[i] = NA
-    } else if(data$rescale_free_x[i] - data$rescale_free_x[i+1] > 0) {
+      # if moving left and between .9 and 5.6, mark as left free movement
+    } else if((data$rescale_free_x[i] - data$rescale_free_x[i+1] > 0) & data$rescale_free_x[i] <= 5.6 & data$rescale_free_x[i+1] <= 5.6 & data$rescale_free_x[i] >= .9 & data$rescale_free_x[i+1] >= .9) {
       data$left_free[i] = data$rescale_free_x[i]
-      data$right_free[i] = NA
+      # if moving between -.9 and .9, mark as task switching
+    } else if((data$rescale_free_x[i] > -.9 & data$rescale_free_x[i] < .9) | (data$rescale_free_x[i+1] > -.9 & data$rescale_free_x[i+1] < .9)) {
+      data$transition_free[i] = 99
     } else {
       data$right_free[i] = NA
       data$left_free[i] = NA
     }
     
-    # check restrict player movement
-    if(data$x2[i] - data$x2[i+1] < 0) {
-      data$right_restrict[i] = data$x2[i]
-      data$left_restrict[i] = NA
-    }
-    else if(data$x2[i] - data$x2[i+1] > 0) {
+    # if moving right and between .9 and 5.6, mark as right restrict movement
+    if((data$x2[i] - data$x2[i+1] < 0) & data$x2[i] <= 5.6 & data$x2[i+1] <= 5.6 & data$x2[i] >= .9 & data$x2[i+1] >= .9) { 
+      data$right_restrict[i] = data$x2[i] 
+      # if moving left and between .9 and 5.6, mark as left restrict movement
+    } else if((data$x2[i] - data$x2[i+1] > 0) & data$x2[i] <= 5.6 & data$x2[i+1] <= 5.6 & data$x2[i] >= .9 & data$x2[i+1] >= .9) {
       data$left_restrict[i] = data$x2[i]
-      data$right_restrict[i] = NA
+      # if moving between -.9 and .9, mark as task switching
+    } else if((data$x2[i] > -.9 & data$x2[i] < .9) | (data$x2[i+1] > -.9 & data$x2[i+1] < .9)) {
+      data$transition_restrict[i] = 99
     } else {
       data$right_restrict[i] = NA
       data$left_restrict[i] = NA
@@ -233,19 +238,35 @@ for (round in names(rounds)){
   data$rescaled_restrict_right = rescale(data$right_restrict, to = c(0, 180), from = range(.9, 5.6))
   data$rescaled_restrict_left = rescale(data$left_restrict, to = c(360, 180), from = range(.9, 5.6))
   
-  # merge phases for each player to one column
-  data$free_phase <- coalesce(data$rescaled_free_left, data$rescaled_free_right)
-  data$restrict_phase <- coalesce(data$rescaled_restrict_left, data$rescaled_restrict_right)
+  # merge phase directions and task switch markers for each player to one column
+  data$free_phase <- coalesce(data$rescaled_free_left, data$rescaled_free_right, data$transition_free)
+  data$restrict_phase <- coalesce(data$rescaled_restrict_left, data$rescaled_restrict_right, data$transition_restrict)
   
-  # fill in NAs with the previous phase (i.e., where they are currently stopped to work)
+  # finish processing phase information
   data <- data %>% 
+    
+    # fill in NAs with the previous phase (i.e., where they are currently stopped to work)
     fill(free_phase) %>% 
     fill(restrict_phase) %>%
-    # calculate phase relationshio
-    mutate(rel_phase = free_phase - restrict_phase) %>%
-    drop_na(rel_phase) %>%
-    mutate(sin = sin(rel_phase)) %>%
-    mutate(cos = cos(rel_phase)) %>%
+    
+    # replace task switch holders with NAs for relative phase calculation
+    mutate(free_phase = ifelse(free_phase == 99, 'NA', free_phase),
+           restrict_phase = ifelse(restrict_phase == 99, 'NA', restrict_phase)) %>%
+    
+    # calculate relative phase - introduces NAs by coercion (but that's due to the task switching NAs)
+    mutate(rel_phase = case_when(
+      !is.na(free_phase) & !is.na(restrict_phase) ~ as.double(free_phase) - as.double(restrict_phase))
+    ) %>%
+    
+    # calculate sinine and cosine
+    mutate(sin = sin(rel_phase*pi/180)) %>%
+    mutate(cos = cos(rel_phase*(pi/180))) %>%
+    
+    # fill NAs with high numbers so that we don't get recurrence
+    mutate(sin = replace_na(sin, 99)) %>%
+    mutate(cos = replace_na(cos, -99)) %>%
+    
+    # add dyad-round marker
     mutate(dyad.round = paste(dyad, ".", round_number)) %>%
     ungroup()
   
@@ -260,7 +281,6 @@ data_prepped_directions = data_prepped %>%
   left_join(directions,by=c("Time", "dyad", "round_number", "rescale_free_x", "x2")) %>%
   group_by(dyad, round_number) %>%
   arrange('Time') %>%
-  drop_na(rel_phase) %>%
   ungroup()
 
 #### 6. Create indicator for task switching (1 = switch; 2 = switch back; 0 = nothing) ####
