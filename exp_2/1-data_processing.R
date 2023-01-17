@@ -1,18 +1,18 @@
 ##### Process data #####
 #
-# Processing data for experiment 1. 
-# Trimming files which had restarts and behavior issues.
-# 
+# Processing data for experiment 2: 
+# - Trimming files which had restarts and behavior issues.
+# - Re-scaling player data to match on x-axis.
+# - Calculating relative phase and splitting into two time series for MdRQA.
+#
 # Code by: @mchiovaro
-# Last updated: 2022_12_21
+# Last updated: 2022_01_17
 
 #### 1. Set up ####
 rm(list=ls())
 setwd("./Documents/github/division-of-labor-analyses/exp_2")
-install.packages("tseriesChaos", "crqa","dplyr")
-install.packages("dplyr")
-library(tseriesChaos, crqa)
-library(dplyr)
+source('../required_packages.r')
+source('../libraries_and_functions.r')
 set.seed(2022)
 
 #### 2. Read in raw data  ####

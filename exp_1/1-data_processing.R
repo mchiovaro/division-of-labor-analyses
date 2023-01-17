@@ -6,17 +6,13 @@
 # - Calculating relative phase and splitting into two time series for MdRQA.
 # 
 # Code by: @mchiovaro
-# Last updated: 2022_01_06
+# Last updated: 2023_01_17
 
 #### 1. set up ####
 rm(list=ls())
 setwd("./Documents/github/division-of-labor-analyses/exp_1")
-install.packages("tseriesChaos", "crqa","dplyr")
-install.packages("scales")
-library(tseriesChaos, crqa)
-library(dplyr)
-library(scales)
-library(tidyr)
+source('../required_packages.r')
+source('../libraries_and_functions.r')
 set.seed(2022)
 
 #### 2. read in raw data  ####
