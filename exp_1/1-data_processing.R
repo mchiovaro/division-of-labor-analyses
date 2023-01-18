@@ -6,7 +6,7 @@
 # - Calculating relative phase and splitting into two time series for MdRQA.
 # 
 # Code by: @mchiovaro
-# Last updated: 2023_01_17
+# Last updated: 2023_01_18
 
 #### 1. set up ####
 rm(list=ls())
@@ -138,8 +138,6 @@ data_prepped <- formatted_all %>%
   mutate(velocity2 = as.numeric((x2-lag(x2))/.02)) %>% # calculate velocity to remove times where players are just working
   mutate(round_number = as.numeric(round_number)) %>%
   filter(!(x1==-3.25 & y1==0 & x2==3.25 & y2==0)) %>% # trim off the beginning before someone starts moving
-  filter(!(velocity1 == 0 & velocity2 == 0 & 
-             (dplyr::lead(velocity1) == 0 & dplyr::lead(velocity2) == 0))) %>% # remove where they are both just working
   mutate(timer = max(Time) - min(Time)) %>% # calculate time to complete each round
   ungroup() %>%
   na.omit()
