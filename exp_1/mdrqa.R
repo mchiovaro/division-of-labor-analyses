@@ -1,9 +1,10 @@
 ##### MdRQA Script #####
 #
 # Script by S. Wallot with modifications by M. Chiovaro
-# Modifications: Matrix() was not working. 
+# Modifications: Replaced the connected components labeling to 
+# utilize the 'mgc' package as 'SDMTools' is no longer maintained.
 #
-# Last updated: 2023_01_25
+# Last updated: 2023_02_13
 
 mdrqa <- function(data,emb,del,norm,rad) {
 # This funciton computes a Performs Multidimensional Recurrence Quantification Analysis (MdRQA)
@@ -60,9 +61,9 @@ mdrqa <- function(data,emb,del,norm,rad) {
 # This code is free and can be distributed and/or modified under the GNU
 # General Public License version 2 or later (Free Software Foundation)
 
-  # Load ConnCompLabel from SDMTools and entropy from entropy
+  # Load ConnCompLabel from mgc and entropy from entropy
   library(entropy)
-  library(SDMTools)
+  library(mgc)
   library(Matrix)
   
   # check input variables
@@ -128,7 +129,7 @@ mdrqa <- function(data,emb,del,norm,rad) {
   diagLine <- split(RP,row(RP) - col(RP))
   diagHist <- 0
   for (i in seq(1,(dim(RP)[1]-1)*2)) {
-    diagHist <- append(diagHist,tabulate(ConnCompLabel(as.numeric(unlist(diagLine[i])))))
+    diagHist <- append(diagHist,tabulate(mgc::ConnCompLabel(as.numeric(unlist(diagLine[i])))))
   }
   diagHist <- diagHist[!diagHist %in% 0]
   
@@ -136,7 +137,7 @@ mdrqa <- function(data,emb,del,norm,rad) {
   vertLine <- split(RP,col(RP))
   vertHist <- 0
   for (i in seq(1,(dim(RP)[1]-1)*2)) {
-    vertHist <- append(vertHist,tabulate(ConnCompLabel(as.numeric(unlist(vertLine[i])))))
+    vertHist <- append(vertHist,tabulate(mgc::ConnCompLabel(as.numeric(unlist(vertLine[i])))))
   }
   vertHist <- vertHist[!vertHist %in% 0]
   
