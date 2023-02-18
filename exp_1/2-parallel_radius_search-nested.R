@@ -30,15 +30,6 @@ source(file = "mdrqa.R")
 data = read.table('./data/data_prepped-exp_1.csv', 
                   sep=',', header = TRUE)
 
-
-# identify initial radius list for calculations
-radius.list = seq(.00000000001, .05000000001, by=.001)
-
-# create a grid
-radius_grid_search = expand.grid(radius.list,
-                                 unique(data$dyad.round))
-colnames(radius_grid_search) <- c("chosen.radius", "participant")
-
 # identify what participant-round we're working with
 dyad.rounds <- unique(data$dyad.round)
 chosen.participant = dyad.rounds[n]
@@ -46,9 +37,12 @@ print(paste("Chosen dyad.round: ", chosen.participant))
 
 # subset the data
 next.participant = data %>%
+  dplyr::filter(dyad.round == chosen.participant)
 rm(data) # get rid of the big data set
-next.radius = radius_grid_search %>%
-  dplyr::filter(participant == chosen.participant)
+
+# create list of radii to search
+next.radius = as.data.frame(seq(1e-29, .09, by=.01))
+colnames(next.radius) = c("chosen.radius")
 
 # set target distance as large so the loop starts the search
 from.target = 99
@@ -67,7 +61,7 @@ radius_selection = data.frame(chosen.participant = numeric(),
 for(i in 1:nrow(next.radius)) {
 
   # so long as the target is too far, continue to check the next radius
-  if(from.target <= from.target.last & from.target > .05 & rr < 5) {
+  if(from.target <= from.target.last & from.target > .05 & rr < 13.686271) {
 
     # update last target distance for comparison
     from.target.last = from.target
@@ -91,9 +85,8 @@ for(i in 1:nrow(next.radius)) {
     rm(rec_analysis)
     
     # identify how far off the RR is from our target (5%)
-    from.target = abs(rr - 5)
-    #print(rr)
-    print(from.target)
+    from.target = abs(rr - 13.686271)
+    print(paste("from.target = ", from.target))
     
     # append to data frame
     radius_selection = rbind.data.frame(radius_selection,
@@ -117,7 +110,7 @@ for(i in 1:nrow(next.radius)) {
 #### 3. Perform additional searches at finer granularity ####
 
 # set parameter for narrowing in on the radius by a tenth each time
-exponents = c(.0001, .00001, .000001, .0000001, .00000001, .000000001)
+exponents = c(1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10)
 
 # if we still haven't gotten close enough to 5%
 for(k in 1:length(exponents)) {
@@ -136,10 +129,8 @@ for(k in 1:length(exponents)) {
     # check each of the new radii in narrow.radii
     for(i in 1:length(narrower.radii)) {
       
-      # print(narrower.radii[i])
-      
       # so long as the target is still too far (but getting closer), continue to check the next radius
-      if(from.target <= from.target.last & from.target > .05 & rr < 5) {
+      if(from.target <= from.target.last & from.target > .05 & rr < 13.686271) {
         
         # update last target distance for comparison
         from.target.last = from.target
@@ -159,8 +150,8 @@ for(k in 1:length(exponents)) {
         rm(rec_analysis)
         
         # identify how far off the RR is from our target (5%)
-        from.target = abs(rr - 5)
-        print(from.target)
+        from.target = abs(rr - 13.686271)
+        print(paste("from.target = ", from.target))
         
         # append to data frame
         radius_selection = rbind.data.frame(radius_selection,
