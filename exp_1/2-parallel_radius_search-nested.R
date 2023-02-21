@@ -10,7 +10,7 @@
 # reduce computational load and number of subsequent manual searches required.
 #
 # Code by: @mchiovaro
-# Last updated: 2023_02_15
+# Last updated: 2023_02_21
 
 #### 1. Set up ####
 
@@ -19,6 +19,9 @@ slurm_arrayid = Sys.getenv('SLURM_ARRAY_TASK_ID')
 
 # coerce the value to an integer
 n = as.numeric(slurm_arrayid)
+
+# set seed for reproducibility
+set.seed(2023)
 
 # load libraries
 library(dplyr)
@@ -43,6 +46,10 @@ rm(data) # get rid of the big data set
 # create list of radii to search
 next.radius = as.data.frame(seq(1e-29, .09, by=.01))
 colnames(next.radius) = c("chosen.radius")
+
+# set rescaling type
+rescale_type = 'mean'
+# rescale_type = 'max'
 
 # set target distance as large so the loop starts the search
 from.target = 99
@@ -73,8 +80,17 @@ for(i in 1:nrow(next.radius)) {
       chosen.radius.last = 0
     }
     
+    # rescale data by mean or max
+    if (rescale_type == 'mean'){
+      sin = next.participant$sin / mean(next.participant$sin)
+      cos = next.participant$cos / mean(next.participant$cos)
+    } else if (rescale_type == 'max'){
+      sin = next.participant$sin / max(next.participant$sin)
+      cos = next.participant$cos / max(next.participant$cos)
+    }
+    
     # run MdRQA and grab recurrence rate (REC)
-    rec_analysis = mdrqa(data = as.matrix(next.participant$sin, next.participant$cos), 
+    rec_analysis = mdrqa(data = as.matrix(sin, cos), 
                          emb = 1, # standard for MdRQA
                          del = 1, # standard for MdRQA
                          norm = "euc", 
@@ -94,7 +110,7 @@ for(i in 1:nrow(next.radius)) {
                                                          chosen.radius,
                                                          rr,
                                                          from.target))
-
+    
     # save individual radius calculations
     write.table(cbind.data.frame(chosen.participant,
                                  next.radius$chosen.radius[i],
@@ -110,7 +126,7 @@ for(i in 1:nrow(next.radius)) {
 #### 3. Perform additional searches at finer granularity ####
 
 # set parameter for narrowing in on the radius by a tenth each time
-exponents = c(1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10)
+exponents = c(1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14, 1e-15, 1e-16, 1e-17, 1e-18, 1e-19, 1e-20)
 
 # if we still haven't gotten close enough to 5%
 for(k in 1:length(exponents)) {
@@ -130,7 +146,7 @@ for(k in 1:length(exponents)) {
     for(i in 1:length(narrower.radii)) {
       
       # so long as the target is still too far (but getting closer), continue to check the next radius
-      if(from.target <= from.target.last & from.target > .05 & rr < 13.686271) {
+      if(from.target <= from.target.last & from.target > .05 & rr < 5) {
         
         # update last target distance for comparison
         from.target.last = from.target
@@ -138,8 +154,17 @@ for(k in 1:length(exponents)) {
         chosen.radius = narrower.radii[i]
         if(i>1){ chosen.radius.last = narrower.radii[i-1] }
         
+        # rescale data by mean or max
+        if (rescale_type == 'mean'){
+          sin = next.participant$sin / mean(next.participant$sin)
+          cos = next.participant$cos / mean(next.participant$cos)
+        } else if (rescale_type == 'max'){
+          sin = next.participant$sin / max(next.participant$sin)
+          cos = next.participant$cos / max(next.participant$cos)
+        }
+        
         # run MdRQA and grab recurrence rate (REC)
-        rec_analysis = mdrqa(data = as.matrix(next.participant$sin, next.participant$cos), 
+        rec_analysis = mdrqa(data = as.matrix(sin, cos), 
                              emb = 1, # standard for MdRQA
                              del = 1, # standard for MdRQA
                              norm = "euc", 
