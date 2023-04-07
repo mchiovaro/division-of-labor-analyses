@@ -329,13 +329,65 @@ for (round in names(rounds)){
 # bind switching markers to original data frame
 data_prepped_final = data_prepped_directions %>% left_join(task_switches,by=c("Time", "dyad", "round_number", "x1", "x2"))
 
-# # check out the number of switches
-# switches <- data_prepped_final %>%
-#   filter(task_switch_free > 0 | task_switch_restrict > 0)
-
 # save data
 write.table(x = data_prepped_final,
             file=paste0("./data/data_prepped-exp_1.csv"),
             sep=",",
             col.names=TRUE,
             row.names=FALSE)
+
+
+
+
+#### 7. Create frequency tables for relative phase ####
+
+# initialize data frame
+freq_tables = data.frame()
+
+# cycle through all rounds for each dyad (& drop rounds removed due to errors)
+rounds = split(data_prepped_final,list(data_prepped_final$dyad,data_prepped_final$round_number))
+rounds = rounds[c(-16, -91, -123)]
+
+# run through each round and mark switches
+for (round in names(rounds)){
+  
+  # subset the data
+  next_data = dplyr::select(rounds[[round]], c(2,3,4,5,6,30))
+  
+  # re-scale data to be between -180 and 180 and round
+  next_data <- next_data %>%
+    tidyr::drop_na(rel_phase) %>%
+    mutate(rel_phase_rescale = case_when(rel_phase > 180 ~ rel_phase-360,
+                                         rel_phase < -180 ~ rel_phase+360,
+                                         rel_phase <= 180 & rel_phase >= -180 ~ rel_phase)) %>%
+  # round to the nearest degree
+  mutate(rel_phase_rounded = round(rel_phase_rescale, digits = 0))
+  
+  # # create frequency table for non-binned data
+  # freq_table <- as.data.frame(table(next_data$rel_phase_rounded))
+  
+  # make into binned groups
+  min_val = -180
+  max_val = 180
+  bin_size = 5
+  break_vals = seq(min_val, max_val, bin_size)  
+  next_data$grouped <- cut(next_data$rel_phase_rounded, breaks = break_vals)
+  
+  # create data frame and visualize the distribution
+  next_table <- as.data.frame(table(next_data$grouped))
+  ggplot(next_table,                                  
+         aes(x = Var1,
+             y = Freq)) + 
+    geom_bar(stat = "identity")
+  
+  # add dyad info and save to data frame
+  next_table$dyad = unique(next_data$dyad)
+  next_table$round = unique(next_data$round)
+  next_table$ie_condition = unique(next_data$ie_condition)
+  next_table$td_condition = unique(next_data$td_condition)
+  freq_tables = rbind.data.frame(freq_tables,next_table)
+  
+}
+
+# save to file
+write.table(freq_tables,'./data/freq_tables-exp_1.csv',sep=",")
