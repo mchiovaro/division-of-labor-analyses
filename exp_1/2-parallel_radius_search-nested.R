@@ -10,7 +10,7 @@
 # reduce computational load and number of subsequent manual searches required.
 #
 # Code by: @mchiovaro
-# Last updated: 2023_02_21
+# Last updated: 2023_02_22
 
 #### 1. Set up ####
 
@@ -44,12 +44,15 @@ next.participant = data %>%
 rm(data) # get rid of the big data set
 
 # create list of radii to search
-next.radius = as.data.frame(seq(1e-29, .09, by=.01))
+next.radius = as.data.frame(seq(1e-50, .5, by=.1))
 colnames(next.radius) = c("chosen.radius")
 
 # set rescaling type
 rescale_type = 'mean'
 # rescale_type = 'max'
+
+# set target rr (smallest possible rr while under 15%)
+target.rr = 13.686271
 
 # set target distance as large so the loop starts the search
 from.target = 99
@@ -66,10 +69,10 @@ radius_selection = data.frame(chosen.participant = numeric(),
 
 # for each of the radii in the grid, perform MdRQA and save rr
 for(i in 1:nrow(next.radius)) {
-
+  
   # so long as the target is too far, continue to check the next radius
-  if(from.target <= from.target.last & from.target > .05 & rr < 13.686271) {
-
+  if(from.target <= from.target.last & rr < target.rr & from.target > .05) {
+    
     # update last target distance for comparison
     from.target.last = from.target
     rr.last = rr
@@ -100,9 +103,9 @@ for(i in 1:nrow(next.radius)) {
     # clear it so we don't take up too much memory
     rm(rec_analysis)
     
-    # identify how far off the RR is from our target (5%)
-    from.target = abs(rr - 13.686271)
-    print(paste("from.target = ", from.target))
+    # identify how far off the RR is from our target (target.rr)
+    from.target = abs(rr - target.rr)
+    print(paste("from.target :", from.target))
     
     # append to data frame
     radius_selection = rbind.data.frame(radius_selection,
@@ -118,7 +121,7 @@ for(i in 1:nrow(next.radius)) {
                                  from.target),
                 paste('./data/radii/radii',next.radius$chosen.radius[i],'-',unique(next.participant$dyad),'_',unique(next.participant$round_number),'.csv', sep=''),
                 sep=',',row.names=FALSE,col.names=TRUE)
-      
+    
   }
   
 }
@@ -126,9 +129,9 @@ for(i in 1:nrow(next.radius)) {
 #### 3. Perform additional searches at finer granularity ####
 
 # set parameter for narrowing in on the radius by a tenth each time
-exponents = c(1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14, 1e-15, 1e-16, 1e-17, 1e-18, 1e-19, 1e-20)
+exponents = c(1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10)
 
-# if we still haven't gotten close enough to 5%
+# if we still haven't gotten close enough to target.rr
 for(k in 1:length(exponents)) {
   
   # create new radius list between the two last searched radii
@@ -146,13 +149,17 @@ for(k in 1:length(exponents)) {
     for(i in 1:length(narrower.radii)) {
       
       # so long as the target is still too far (but getting closer), continue to check the next radius
-      if(from.target <= from.target.last & from.target > .05 & rr < 5) {
+      # add a cut off of being within .05 so that we don't run over calculation time
+      if(from.target <= from.target.last & rr < target.rr & from.target > .05) {
         
         # update last target distance for comparison
         from.target.last = from.target
         rr.last = rr
         chosen.radius = narrower.radii[i]
-        if(i>1){ chosen.radius.last = narrower.radii[i-1] }
+        if(i>1) { chosen.radius.last = narrower.radii[i-1] 
+        } else {
+          chosen.radius.last = 0
+        }
         
         # rescale data by mean or max
         if (rescale_type == 'mean'){
@@ -174,9 +181,9 @@ for(k in 1:length(exponents)) {
         # clear it so we don't take up too much memory
         rm(rec_analysis)
         
-        # identify how far off the RR is from our target (5%)
-        from.target = abs(rr - 13.686271)
-        print(paste("from.target = ", from.target))
+        # identify how far off the RR is from our target (target.rr)
+        from.target = abs(rr - target.rr)
+        print(from.target)
         
         # append to data frame
         radius_selection = rbind.data.frame(radius_selection,
@@ -198,5 +205,5 @@ for(k in 1:length(exponents)) {
     } 
     
   }
-    
+  
 }
