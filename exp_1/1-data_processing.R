@@ -375,8 +375,9 @@ for (round in names(rounds)){
   
   # create data frame and visualize the distribution
   next_table <- as.data.frame(table(next_data$grouped))
+  next_table$bin <- c(1:nrow(next_table))
   ggplot(next_table,                                  
-         aes(x = Var1,
+         aes(x = bin,
              y = Freq)) + 
     geom_bar(stat = "identity")
   
