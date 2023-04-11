@@ -336,9 +336,6 @@ write.table(x = data_prepped_final,
             col.names=TRUE,
             row.names=FALSE)
 
-
-
-
 #### 7. Create frequency tables for relative phase ####
 
 # initialize data frame
@@ -363,23 +360,22 @@ for (round in names(rounds)){
   # round to the nearest degree
   mutate(rel_phase_rounded = round(rel_phase_rescale, digits = 0))
   
-  # # create frequency table for non-binned data
-  # freq_table <- as.data.frame(table(next_data$rel_phase_rounded))
+  # create frequency table for non-binned data
+  next_table <- as.data.frame(table(next_data$rel_phase_rounded))
   
-  # make into binned groups
-  min_val = -180
-  max_val = 180
-  bin_size = 5
-  break_vals = seq(min_val, max_val, bin_size)  
-  next_data$grouped <- cut(next_data$rel_phase_rounded, breaks = break_vals)
-  
-  # create data frame and visualize the distribution
-  next_table <- as.data.frame(table(next_data$grouped))
-  next_table$bin <- c(1:nrow(next_table))
-  ggplot(next_table,                                  
-         aes(x = bin,
-             y = Freq)) + 
-    geom_bar(stat = "identity")
+  # # make into binned groups
+  # min_val = -180
+  # max_val = 180
+  # bin_size = 5
+  # break_vals = seq(min_val, max_val, bin_size)  
+  # next_data$grouped <- cut(next_data$rel_phase_rounded, breaks = break_vals)
+  # # create data frame and visualize the distribution
+  # next_table <- as.data.frame(table(next_data$grouped))
+  # next_table$bin <- c(1:nrow(next_table))
+  # ggplot(next_table,                                  
+  #        aes(x = bin,
+  #            y = Freq)) + 
+  #   geom_bar(stat = "identity")
   
   # add dyad info and save to data frame
   next_table$dyad = unique(next_data$dyad)
