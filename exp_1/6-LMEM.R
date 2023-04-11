@@ -20,53 +20,111 @@ relphase_freq_data = read.table('./data/freq_tables-exp_1.csv',
 
 #### H1: More deterministic than chance ####
 
-###### 1. Add an indicator ("data") for real (.5) or surrogate (-.5) data ######
-real_data$data<- .5
+# add an indicator ("data") for real (.5) or surrogate (-.5) data ######
+real_data$data <- .5
 shuffled_data$data <- -.5
-# specify variables to keep
+
+# specify variables to keep and bind the data
 shared_variables = names(real_data)[names(real_data) %in% names(shuffled_data)]
-shared_variables = shared_variables[c(4,(17:23))]
-# bind the data
+shared_variables = shared_variables[c(4,17:20, 22:23)]
 all_data = rbind.data.frame(dplyr::select(real_data,one_of(shared_variables)),
                                  dplyr::select(shuffled_data,one_of(shared_variables)))
+real_data = select(real_data,one_of(shared_variables))
 
-# standardize all variables to interpret effect sizes (Keith, 2005, *Multiple regression and beyond*).
-all_data_st = all_data %>% mutate_all(~(scale(.) %>% as.vector))
-real_data_st = real_data %>% select(one_of(shared_variables)) %>%
-  select(-c(com_condition, data)) %>% # drop com_condition and data since not relevant here
-  mutate_all(~(scale(.) %>% as.vector))
+# standardize continuous variables to interpret effect sizes (Keith, 2005) and create factors for IVs
+all_data_st = all_data %>% 
+  mutate(DET = scale(DET)) %>% 
+  mutate(timer = scale(timer)) %>% 
+  mutate(round_number = scale(round_number)) %>%
+  mutate(dyad = as.factor(dyad)) %>%
+  mutate(td_condition = as.factor(td_condition)) %>%
+  mutate(ie_condition = as.factor(ie_condition)) %>%
+  mutate(data = as.factor(data))
+real_data_st = real_data %>% 
+  mutate(DET = scale(DET)) %>% 
+  mutate(timer = scale(timer)) %>% 
+  mutate(round_number = scale(round_number)) %>%
+  select(-c(data)) %>% # drop data since not relevant here
+  mutate(dyad = as.factor(dyad)) %>%
+  mutate(td_condition = as.factor(td_condition)) %>%
+  mutate(ie_condition = as.factor(ie_condition))
+all_data = all_data %>%
+  mutate(dyad = as.factor(dyad)) %>%
+  mutate(td_condition = as.factor(td_condition)) %>%
+  mutate(ie_condition = as.factor(ie_condition)) %>%
+  mutate(data = as.factor(data))
+real_data = real_data %>%
+  mutate(dyad = as.factor(dyad)) %>%
+  mutate(td_condition = as.factor(td_condition)) %>%
+  mutate(ie_condition = as.factor(ie_condition))
 
-###### 2. Construct the model ######
-surrogate.model = lmer(DET ~ 
+# construct the raw model
+surrogate.model.raw = lmer(DET ~ 
+                         # fixed effects
+                         data + td_condition + ie_condition + round_number +
+                         data*td_condition + data*ie_condition +
+                         td_condition*ie_condition +
+                         data*td_condition*ie_condition +
+                         # maximal random effect structure allowable
+                         (1 + td_condition | dyad),
+                       data = all_data, REML = FALSE)
+pander_lme(surrogate.model.raw,stats.caption = TRUE)
+
+# construct the standardized model
+surrogate.model.st = lmer(DET ~ 
                          # fixed effects
                          data + td_condition + ie_condition + round_number +
                          data*td_condition + data*ie_condition +
                          td_condition*ie_condition +
                          data*td_condition*ie_condition +
                          # random effects of dyad
-                         (1 + td_condition + td_condition*ie_condition | dyad),
+                         (1 + td_condition | dyad),
                        data = all_data_st, REML = FALSE)
-pander_lme(surrogate.model,stats.caption = TRUE)
+pander_lme(surrogate.model.st,stats.caption = TRUE)
 
 #### H2: Task switching leads to lower completion times. #### 
-completion.model = lmer(timer ~ 
+
+# raw model
+completion.model.raw = lmer(timer ~ 
                          # fixed effects
                          td_condition + ie_condition + round_number +
                          td_condition*ie_condition +
                          # random effects of dyad
-                         (1 + td_condition + td_condition*ie_condition | dyad),
-                       data = real_data_st, REML = FALSE)
-pander_lme(completion.model,stats.caption = TRUE)
+                         (1 | dyad),
+                       data = real_data, REML = FALSE)
+pander_lme(completion.model.raw,stats.caption = TRUE)
+
+# raw model
+completion.model.st = lmer(timer ~ 
+                              # fixed effects
+                              td_condition + ie_condition + round_number +
+                              td_condition*ie_condition +
+                              # random effects of dyad
+                              (1 | dyad),
+                            data = real_data_st, REML = FALSE)
+pander_lme(completion.model.st,stats.caption = TRUE)
 
 #### H3: Task switching leads to more time in relative coordination. ####
-coordination.model = lmer(DET ~ 
+
+# raw model
+coordination.model.raw = lmer(DET ~ 
                           # fixed effects
                           td_condition + ie_condition + round_number +
                           td_condition*ie_condition +
                           # random effects of dyad
-                          (1 + td_condition + td_condition*ie_condition | dyad),
-                        data = real_data_st, REML = FALSE)
-pander_lme(coordination.model,stats.caption = TRUE)
+                          (1 + td_condition | dyad),
+                        data = real_data, REML = FALSE)
+pander_lme(coordination.model.raw,stats.caption = TRUE)
+
+# standardized model
+coordination.model.st = lmer(DET ~ 
+                                # fixed effects
+                                td_condition + ie_condition + round_number +
+                                td_condition*ie_condition +
+                                # random effects of dyad
+                                (1 + td_condition | dyad),
+                              data = real_data_st, REML = FALSE)
+pander_lme(coordination.model.st,stats.caption = TRUE)
 
 #### H4: In I.E. condition 2, P2 will adapt to (follow) P1 ####
 
@@ -80,38 +138,42 @@ relphase_vals[, paste("ot", 1:2, sep="")] = t[relphase_vals$raw_relphase + phase
 # join it to the original data table
 relphase_freq_data = left_join(relphase_freq_data,relphase_vals, by = c("Var1" = "raw_relphase"))
 
-# create interaction terms
+# create factors for raw model
 relphase_freq_data = relphase_freq_data %>% ungroup() %>%
-  
-  # primary interaction
-  mutate(ie.td = ie_condition * td_condition) %>%
-  
-  # first-order polynomials
-  mutate(ie.ot1 = ie_condition * ot1) %>%
-  mutate(td.ot1 = td_condition * ot1) %>%
-  mutate(ie.td.ot1 = ie_condition * td_condition * ot1) %>%
-  
-  # second-order polynomials
-  mutate(ie.ot2 = ie_condition * ot2) %>%
-  mutate(td.ot2 = td_condition * ot2) %>%
-  mutate(ie.td.ot2 = ie_condition * td_condition * ot2) %>%
-  
-  # polynomial interactions
-  mutate(ot1.ot2 = ot1 * ot2) %>%
-  mutate(ie.ot1.ot2 = ie_condition * ot1 * ot2) %>%
-  mutate(td.ot1.ot2 = td_condition * ot1 * ot2) %>%
-  mutate(ie.td.ot1.ot2 = ie_condition * td_condition * ot1 * ot2)
+  mutate(dyad = as.factor(dyad)) %>%
+  mutate(td_condition = as.factor(td_condition)) %>%
+  mutate(ie_condition = as.factor(ie_condition)) #%>%
 
-# standardize all variables to interpret effect sizes (Keith, 2005, *Multiple regression and beyond*).
-relphase_freq_data_st = relphase_freq_data %>% mutate_all(~(scale(.) %>% as.vector))
+# standardize variables and create factors
+relphase_freq_data_st = relphase_freq_data %>% 
+  mutate(dyad = as.factor(dyad)) %>%
+  mutate(td_condition = as.factor(td_condition)) %>%
+  mutate(ie_condition = as.factor(ie_condition)) %>%
+  mutate(Var1 = scale(Var1)) %>%
+  mutate(Freq = scale(Freq)) %>%
+  mutate(round = scale(round)) %>%
+  mutate(ot1 = scale(ot1)) %>%
+  mutate(ot2 = scale(ot2))
 
-# standardized maximal random-effects model
-relphase_gca_st = lmer(Freq ~ ie_condition + td_condition + ot1 + ot2 +
-                                      ie.td + ot1.ot2 +
-                                      td.ot1 + ie.ot1 + ie.td.ot1 +
-                                      td.ot2 + ie.ot2 + ie.td.ot2 +
-                                      td.ot1.ot2 + ie.ot1.ot2 + ie.td.ot1.ot2 +
-                                      (1 + ot1 + ot2 + ie_condition | dyad),
-                                    data=relphase_freq_data_st, REML=FALSE)
-pander_lme(relphase_gca_st,stats.caption = TRUE)
+# raw model
+relphase.gca.raw = lmer(Freq ~ ie_condition + td_condition + ot1 + ot2 +
+                                      ie_condition*td_condition + ot1*ot2 +
+                                      td_condition*ot1 + ie_condition*ot1 + td_condition*ie_condition*ot1 +
+                                      td_condition*ot2 + ie_condition*ot2 + td_condition*ie_condition*ot2 +
+                                      td_condition *ot1*ot2 + ie_condition*ot1*ot2 +
+                                      td_condition*ie_condition*ot1*ot2 +
+                                      (1 | dyad),
+                                    data=relphase_freq_data, REML=FALSE)
+pander_lme(relphase.gca.raw,stats.caption = TRUE)
+
+# standardized model
+relphase.gca.st = lmer(Freq ~ ie_condition + td_condition + ot1 + ot2 +
+                         ie_condition*td_condition + ot1*ot2 +
+                         td_condition*ot1 + ie_condition*ot1 + td_condition*ie_condition*ot1 +
+                         td_condition*ot2 + ie_condition*ot2 + td_condition*ie_condition*ot2 +
+                         td_condition *ot1*ot2 + ie_condition*ot1*ot2 +
+                         td_condition*ie_condition*ot1*ot2 +
+                         (1| dyad),
+                        data=relphase_freq_data_st, REML=FALSE)
+pander_lme(relphase.gca.st,stats.caption = TRUE)
 
