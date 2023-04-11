@@ -196,12 +196,12 @@ for(i in 1:nrow(data_prepped)){
   } else { data_prepped$rescale_free2_x[i] = data_prepped$x3[i] }    
 }
 
-# # save placeholder rescaled data to save time
-# write.table(x = data_prepped,
-#             file=paste0("./data/data_prepped-1_rescaled.csv"),
-#             sep=",",
-#             col.names=TRUE,
-#             row.names=FALSE)
+# save placeholder rescaled data to save time
+write.table(x = data_prepped,
+            file=paste0("./data/data_prepped-1_rescaled.csv"),
+            sep=",",
+            col.names=TRUE,
+            row.names=FALSE)
 
 #### 5. Identify directions of movement ####
 
@@ -502,13 +502,13 @@ for (round in names(rounds)){
 }
 
 # bind phase data to original data frame
-data_prepped_directions = data_prepped %>% 
+data_directions = data_prepped %>% 
   left_join(directions,by=c("Time", "dyad", "round_number", "rescale_free_x", "rescale_free2_x", "x2", "x4")) %>%
   group_by(dyad, round_number) %>%
-  arrange('Time') %>%
+  arrange('Time') %>% 
   ungroup()
 
-#### 11. Create indicator for task switching (1 = switch; 2 = switch back; 0 = nothing) ####
+#### 12. Create indicator for task switching (1 = switch; 2 = switch back; 0 = nothing) ####
 
 # create empty data frame
 task_switches = data.frame(Time = numeric(),
@@ -584,15 +584,11 @@ for (round in names(rounds)){
 }
 
 # bind switching markers to original data frame
-data_prepped_final = data_prepped_directions %>%
+data_final = data_directions %>%
   left_join(task_switches,by=c("Time", "dyad", "round_number", "x1", "x2", "x3", "x4"))
 
-# check out the number of switches
-switches <- data_prepped_final %>%
-  filter(task_switch_free > 0 | task_switch_restrict > 0 | task_switch_free2 > 0 | task_switch_restrict2 > 0)
-
 # save data
-write.table(x = data_prepped_final,
+write.table(x = data_final,
             file=paste0("./data/data_prepped-exp_3.csv"),
             sep=",",
             col.names=TRUE,
