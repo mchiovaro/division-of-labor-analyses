@@ -252,7 +252,7 @@ for (round in names(rounds)){
       !is.na(free_phase) & !is.na(restrict_phase) ~ as.double(free_phase) - as.double(restrict_phase))
     ) %>%
     
-    # calculate sinine and cosine
+    # calculate sine and cosine
     mutate(sin = sin(rel_phase*pi/180)) %>%
     mutate(cos = cos(rel_phase*(pi/180))) %>%
     
