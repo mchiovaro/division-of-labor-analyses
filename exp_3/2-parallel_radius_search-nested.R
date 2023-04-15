@@ -49,12 +49,8 @@ next.participant = data %>%
 next.radius = as.data.frame(seq(1e-50, .9, by=.1))
 colnames(next.radius) = c("chosen.radius")
 
-# set rescaling type
-rescale_type = 'mean'
-# rescale_type = 'max'
-
 # set target rr (smallest possible rr while under target.rr from exp 2 [11.597%])
-target.rr = 11.597359
+target.rr = 5
 
 # set target distance as large so the loop starts the search
 from.target = 99
@@ -85,22 +81,8 @@ for(i in 1:nrow(next.radius)) {
       chosen.radius.last = 0
     }
     
-    # create sine and cosine
-    next.participant = next.participant %>%
-      mutate(sin = sin(cluster_phase_rad)) %>%
-      mutate(cos = cos(cluster_phase_rad)) 
-    
-    # rescale data by mean or max
-    if (rescale_type == 'mean'){
-      sin = next.participant$sin / mean(next.participant$sin)
-      cos = next.participant$cos / mean(next.participant$cos)
-    } else if (rescale_type == 'max'){
-      sin = next.participant$sin / max(next.participant$sin)
-      cos = next.participant$cos / max(next.participant$cos)
-    }
-    
     # run MdRQA and grab recurrence rate (REC)
-    rec_analysis = mdrqa(data = as.matrix(sin, cos), 
+    rec_analysis = mdrqa(data = as.matrix(next.participant$sin, next.participant$cos), 
                          emb = 1, # standard for MdRQA
                          del = 1, # standard for MdRQA
                          norm = "euc", 
@@ -168,17 +150,8 @@ for(k in 1:length(exponents)) {
           chosen.radius.last = 0
         }
         
-        # rescale data by mean or max
-        if (rescale_type == 'mean'){
-          sin = next.participant$sin / mean(next.participant$sin)
-          cos = next.participant$cos / mean(next.participant$cos)
-        } else if (rescale_type == 'max'){
-          sin = next.participant$sin / max(next.participant$sin)
-          cos = next.participant$cos / max(next.participant$cos)
-        }
-        
         # run MdRQA and grab recurrence rate (REC)
-        rec_analysis = mdrqa(data = as.matrix(sin, cos), 
+        rec_analysis = mdrqa(data = as.matrix(next.participant$sin, next.participant$cos), 
                              emb = 1, # standard for MdRQA
                              del = 1, # standard for MdRQA
                              norm = "euc", 

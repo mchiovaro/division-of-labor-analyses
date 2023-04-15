@@ -38,21 +38,18 @@ dyad.rounds <- unique(data$dyad.round)
 chosen.participant = dyad.rounds[n]
 print(paste("Chosen dyad.round: ", chosen.participant))
 
-# subset the data
+# subset the data and remove NAs
 next.participant = data %>%
   dplyr::filter(dyad.round == chosen.participant)
+next.participant = next.participant[complete.cases(next.participant$rel_phase), ]
 rm(data) # get rid of the big data set
 
 # create list of radii to search
 next.radius = as.data.frame(seq(1e-50, .5, by=.1))
 colnames(next.radius) = c("chosen.radius")
 
-# set rescaling type
-rescale_type = 'mean'
-# rescale_type = 'max'
-
 # set target rr (smallest possible rr while under 15%)
-target.rr = 13.686271
+target.rr = 5
 
 # set target distance as large so the loop starts the search
 from.target = 99
@@ -83,17 +80,8 @@ for(i in 1:nrow(next.radius)) {
       chosen.radius.last = 0
     }
     
-    # rescale data by mean or max
-    if (rescale_type == 'mean'){
-      sin = next.participant$sin / mean(next.participant$sin)
-      cos = next.participant$cos / mean(next.participant$cos)
-    } else if (rescale_type == 'max'){
-      sin = next.participant$sin / max(next.participant$sin)
-      cos = next.participant$cos / max(next.participant$cos)
-    }
-    
     # run MdRQA and grab recurrence rate (REC)
-    rec_analysis = mdrqa(data = as.matrix(sin, cos), 
+    rec_analysis = mdrqa(data = as.matrix(next.participant$sin, next.participant$cos), 
                          emb = 1, # standard for MdRQA
                          del = 1, # standard for MdRQA
                          norm = "euc", 
@@ -161,17 +149,8 @@ for(k in 1:length(exponents)) {
           chosen.radius.last = 0
         }
         
-        # rescale data by mean or max
-        if (rescale_type == 'mean'){
-          sin = next.participant$sin / mean(next.participant$sin)
-          cos = next.participant$cos / mean(next.participant$cos)
-        } else if (rescale_type == 'max'){
-          sin = next.participant$sin / max(next.participant$sin)
-          cos = next.participant$cos / max(next.participant$cos)
-        }
-        
         # run MdRQA and grab recurrence rate (REC)
-        rec_analysis = mdrqa(data = as.matrix(sin, cos), 
+        rec_analysis = mdrqa(data = as.matrix(next.participant$sin, next.participant$cos), 
                              emb = 1, # standard for MdRQA
                              del = 1, # standard for MdRQA
                              norm = "euc", 
