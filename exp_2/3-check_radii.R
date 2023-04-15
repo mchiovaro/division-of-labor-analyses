@@ -13,10 +13,12 @@ setwd("./Documents/github/division-of-labor-analyses/exp_2")
 data = read.table('./data/data_prepped-exp_2.csv', 
                   sep=',', header = TRUE)
 
-radius_files_all = list.files('./data/radii_all', 
+# read radii file names
+radius_files_all = list.files('./data/radii', 
                                   pattern='radii*',
                                   full.names = TRUE)
 
+# bind radii files and filter for best radius estimate
 radius_stats_all = rbind.data.frame(rbindlist(lapply(radius_files_all, fread, sep=","))) %>%
   ungroup() %>%
   group_by(chosen.participant) %>%
