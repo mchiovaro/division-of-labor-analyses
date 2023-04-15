@@ -26,9 +26,6 @@ library(nonlinearTseries)
 mdrqa_results = data.frame()
 dyad.rounds <- unique(data$dyad.round)
 
-# set rescale type to mean
-rescale_type = 'mean'
-
 # cycle through each dyad-round
 for (n in 1:length(dyad.rounds)){
   
@@ -42,20 +39,11 @@ for (n in 1:length(dyad.rounds)){
   # isolate radius
   chosen.radius = unique(next.round$chosen.radius)
   
-  # rescale data by mean or max
-  if (rescale_type == 'mean'){
-    sin = next.round$sin / mean(next.round$sin)
-    cos = next.round$cos / mean(next.round$cos)
-  } else if (rescale_type == 'max'){
-    sin = next.round$sin / max(next.round$sin)
-    cos = next.round$cos / max(next.round$cos)
-  } 
-  
   # print update
   print(paste("CRQA: dyad.round ", unique(next.round$dyad.round)))
   
   # run MdRQA
-  rec_analysis = mdrqa(data = as.matrix(sin, cos), 
+  rec_analysis = mdrqa(data = as.matrix(next.round$sin, next.round$cos), 
                        emb = 1, # standard for MdRQA
                        del = 1, # standard for MdRQA
                        norm = "euc", 
