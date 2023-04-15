@@ -141,13 +141,24 @@ data_prepped <- formatted_all %>%
   mutate(timer = max(Time) - min(Time)) %>% # calculate time to complete each round
   ungroup() %>%
   na.omit()
-# create new variables and rescale beeFree x locations to match the directions of beeRestrict
+# create new variables and rescale x locations to match the directions of beeRestrict's side of the board
 data_prepped['rescale_free_x'] <- NA
+data_prepped['rescale_restrict_x'] <- NA
 for(i in 1:nrow(data_prepped)){
   if(data_prepped$x1[i] <= -.9) { data_prepped$rescale_free_x[i] = data_prepped$x1[i] + 6.5 
   } else { data_prepped$rescale_free_x[i] = data_prepped$x1[i]
   }  
+  if(data_prepped$x2[i] <= -.9) { data_prepped$rescale_restrict_x[i] = data_prepped$x2[i] + 6.5 
+  } else { data_prepped$rescale_restrict_x[i] = data_prepped$x2[i]
+  }  
 }
+
+# save placeholder rescaled data to save time
+write.table(x = data_prepped,
+            file=paste0("./data/data_positive_x_vals-exp_1.csv"),
+            sep=",",
+            col.names=TRUE,
+            row.names=FALSE)
 
 #### 5. Identify directions of movement ####
 
@@ -182,7 +193,7 @@ rounds = rounds[c(-16, -91, -123)]
 for (round in names(rounds)){
   
   # pick out the data to identify task switches
-  data = dplyr::select(rounds[[round]], c(2,3,4,17,12))
+  data = dplyr::select(rounds[[round]], c(2,3,4,17,18))
   data['left_free'] <- NA
   data['right_free'] <- NA
   data['left_restrict'] <- NA
@@ -204,21 +215,21 @@ for (round in names(rounds)){
       data$left_free[i] = data$rescale_free_x[i]
       # if moving between -.9 and .9, mark as task switching
     } else if((data$rescale_free_x[i] > -.9 & data$rescale_free_x[i] < .9) | (data$rescale_free_x[i+1] > -.9 & data$rescale_free_x[i+1] < .9)) {
-      data$transition_free[i] = 99
+      data$transition_free[i] = -99
     } else {
       data$right_free[i] = NA
       data$left_free[i] = NA
     }
     
     # if moving right and between .9 and 5.6, mark as right restrict movement
-    if((data$x2[i] - data$x2[i+1] < 0) & data$x2[i] <= 5.6 & data$x2[i+1] <= 5.6 & data$x2[i] >= .9 & data$x2[i+1] >= .9) { 
-      data$right_restrict[i] = data$x2[i] 
+    if((data$rescale_restrict_x[i] - data$rescale_restrict_x[i+1] < 0) & data$rescale_restrict_x[i] <= 5.6 & data$rescale_restrict_x[i+1] <= 5.6 & data$rescale_restrict_x[i] >= .9 & data$rescale_restrict_x[i+1] >= .9) { 
+      data$right_restrict[i] = data$rescale_restrict_x[i] 
       # if moving left and between .9 and 5.6, mark as left restrict movement
-    } else if((data$x2[i] - data$x2[i+1] > 0) & data$x2[i] <= 5.6 & data$x2[i+1] <= 5.6 & data$x2[i] >= .9 & data$x2[i+1] >= .9) {
-      data$left_restrict[i] = data$x2[i]
+    } else if((data$rescale_restrict_x[i] - data$rescale_restrict_x[i+1] > 0) & data$rescale_restrict_x[i] <= 5.6 & data$rescale_restrict_x[i+1] <= 5.6 & data$rescale_restrict_x[i] >= .9 & data$rescale_restrict_x[i+1] >= .9) {
+      data$left_restrict[i] = data$rescale_restrict_x[i]
       # if moving between -.9 and .9, mark as task switching
-    } else if((data$x2[i] > -.9 & data$x2[i] < .9) | (data$x2[i+1] > -.9 & data$x2[i+1] < .9)) {
-      data$transition_restrict[i] = 99
+    } else if((data$rescale_restrict_x[i] > -.9 & data$rescale_restrict_x[i] < .9) | (data$rescale_restrict_x[i+1] > -.9 & data$rescale_restrict_x[i+1] < .9)) {
+      data$transition_restrict[i] = -99
     } else {
       data$right_restrict[i] = NA
       data$left_restrict[i] = NA
@@ -243,9 +254,13 @@ for (round in names(rounds)){
     fill(free_phase) %>% 
     fill(restrict_phase) %>%
     
+    # drop remaining NAs from the beginning before both players have started moving
+    drop_na(free_phase) %>%
+    drop_na(restrict_phase) %>%
+    
     # replace task switch holders with NAs for relative phase calculation
-    mutate(free_phase = ifelse(free_phase == 99, 'NA', free_phase),
-           restrict_phase = ifelse(restrict_phase == 99, 'NA', restrict_phase)) %>%
+    mutate(free_phase = ifelse(free_phase == -99, 'NA', free_phase),
+           restrict_phase = ifelse(restrict_phase == -99, 'NA', restrict_phase)) %>%
     
     # calculate relative phase - introduces NAs by coercion (but that's due to the task switching NAs)
     mutate(rel_phase = case_when(
@@ -253,12 +268,16 @@ for (round in names(rounds)){
     ) %>%
     
     # calculate sine and cosine
-    mutate(sin = sin(rel_phase*pi/180)) %>%
+    mutate(sin = sin(rel_phase*(pi/180))) %>%
     mutate(cos = cos(rel_phase*(pi/180))) %>%
     
+    # mean scale the sine and cosine values
+    mutate(sin = sin/mean(sin, na.rm = TRUE)) %>%
+    mutate(cos = cos/mean(cos, na.rm = TRUE)) %>%
+    
     # fill NAs with high numbers so that we don't get recurrence
-    mutate(sin = replace_na(sin, 99)) %>%
-    mutate(cos = replace_na(cos, -99)) %>%
+    mutate(sin = replace_na(sin, 99999)) %>%
+    mutate(cos = replace_na(cos, -99999)) %>%
     
     # add dyad-round marker
     mutate(dyad.round = paste(dyad, ".", round_number)) %>%
@@ -272,12 +291,16 @@ for (round in names(rounds)){
 
 # bind switching markers to original data frame
 data_prepped_directions = data_prepped %>% 
-  left_join(directions,by=c("Time", "dyad", "round_number", "rescale_free_x", "x2")) %>%
+  left_join(directions,by=c("Time", "dyad", "round_number", "rescale_free_x", "rescale_restrict_x")) %>%
   group_by(dyad, round_number) %>%
   arrange('Time') %>%
+  drop_na(dyad.round) %>%
   ungroup()
 
 #### 6. Create indicator for task switching (1 = switch; 2 = switch back; 0 = nothing) ####
+
+# cycle through all rounds for each dyad
+rounds = split(data_prepped_directions,list(data_prepped_directions$dyad,data_prepped_directions$round_number))
 
 # create empty dataframe
 task_switches = data.frame(Time = numeric(),
@@ -293,41 +316,49 @@ for (round in names(rounds)){
   
   # pick out the data to identify task switches
   data = dplyr::select(rounds[[round]], c(2,3,4,10,12))
-  data['task_switch_free'] <- NA
-  data['task_switch_restrict'] <- NA
   
-  # sort data in ascending time
-  data <- data[order(data$Time),]
-
-  # for each line, check for a switch
-  for(i in 1:(nrow(data)-1)){
+  # skip the rounds that were removed
+  if(nrow(data)!=0) {
     
-    if(data$x1[i] <= 0 & data$x1[i+1] >= 0) { # identify task switches for beeFree
-      data$task_switch_free[i] = 1
-    } else if (data$x1[i] >= 0 & data$x1[i+1] <= 0) { # identify switching back for beeFree
-      data$task_switch_free[i] = 2
-    } else { 
-      data$task_switch_free[i] = 0 
-    }
-   
-    if(data$x2[i] >= 0 & data$x2[i+1] <= 0) { # identify task switches for beeRestrict
-      data$task_switch_restrict[i] = 1
-    } else if(data$x2[i] <= 0 & data$x2[i+1] >= 0) { # identify switching back for beeRestrict
-      data$task_switch_restrict[i] = 2
-    } else {
-      data$task_switch_restrict[i] = 0
-    }
-
-  }
+    data['task_switch_free'] <- NA
+    data['task_switch_restrict'] <- NA
+    
+    # sort data in ascending time
+    data <- data[order(data$Time),]
   
-  # bind everything to data frame
-  task_switches = rbind.data.frame(task_switches,
-                                  data)
+    # for each line, check for a switch
+    for(i in 1:(nrow(data)-1)){
+      
+      if(data$x1[i] <= 0 & data$x1[i+1] >= 0) { # identify task switches for beeFree
+        data$task_switch_free[i] = 1
+      } else if (data$x1[i] >= 0 & data$x1[i+1] <= 0) { # identify switching back for beeFree
+        data$task_switch_free[i] = 2
+      } else { 
+        data$task_switch_free[i] = 0 
+      }
+     
+      if(data$x2[i] >= 0 & data$x2[i+1] <= 0) { # identify task switches for beeRestrict
+        data$task_switch_restrict[i] = 1
+      } else if(data$x2[i] <= 0 & data$x2[i+1] >= 0) { # identify switching back for beeRestrict
+        data$task_switch_restrict[i] = 2
+      } else {
+        data$task_switch_restrict[i] = 0
+      }
+  
+    }
+    
+    # bind everything to data frame
+    task_switches = rbind.data.frame(task_switches,
+                                    data)
+  }
   
 }
 
 # bind switching markers to original data frame
 data_prepped_final = data_prepped_directions %>% left_join(task_switches,by=c("Time", "dyad", "round_number", "x1", "x2"))
+
+# check that we have no NAs in the relevant time series
+sum(is.na(data_prepped_final$sin))
 
 # save data
 write.table(x = data_prepped_final,
@@ -343,46 +374,49 @@ freq_tables = data.frame()
 
 # cycle through all rounds for each dyad (& drop rounds removed due to errors)
 rounds = split(data_prepped_final,list(data_prepped_final$dyad,data_prepped_final$round_number))
-rounds = rounds[c(-16, -91, -123)]
 
 # run through each round and mark switches
 for (round in names(rounds)){
   
   # subset the data
-  next_data = dplyr::select(rounds[[round]], c(2,3,4,5,6,30))
+  next_data = dplyr::select(rounds[[round]], c(2,3,4,5,6,31))
   
-  # re-scale data to be between -180 and 180 and round
-  next_data <- next_data %>%
-    tidyr::drop_na(rel_phase) %>%
-    mutate(rel_phase_rescale = case_when(rel_phase > 180 ~ rel_phase-360,
-                                         rel_phase < -180 ~ rel_phase+360,
-                                         rel_phase <= 180 & rel_phase >= -180 ~ rel_phase)) %>%
-  # round to the nearest degree
-  mutate(rel_phase_rounded = round(rel_phase_rescale, digits = 0))
-  
-  # create frequency table for non-binned data
-  next_table <- as.data.frame(table(next_data$rel_phase_rounded))
-  
-  # # make into binned groups
-  # min_val = -180
-  # max_val = 180
-  # bin_size = 5
-  # break_vals = seq(min_val, max_val, bin_size)  
-  # next_data$grouped <- cut(next_data$rel_phase_rounded, breaks = break_vals)
-  # # create data frame and visualize the distribution
-  # next_table <- as.data.frame(table(next_data$grouped))
-  # next_table$bin <- c(1:nrow(next_table))
-  # ggplot(next_table,                                  
-  #        aes(x = bin,
-  #            y = Freq)) + 
-  #   geom_bar(stat = "identity")
-  
-  # add dyad info and save to data frame
-  next_table$dyad = unique(next_data$dyad)
-  next_table$round = unique(next_data$round)
-  next_table$ie_condition = unique(next_data$ie_condition)
-  next_table$td_condition = unique(next_data$td_condition)
-  freq_tables = rbind.data.frame(freq_tables,next_table)
+  if(nrow(next_data)!=0) {
+    
+    # re-scale data to be between -180 and 180 and round
+    next_data <- next_data %>%
+      tidyr::drop_na(rel_phase) %>%
+      mutate(rel_phase_rescale = case_when(rel_phase > 180 ~ rel_phase-360,
+                                           rel_phase < -180 ~ rel_phase+360,
+                                           rel_phase <= 180 & rel_phase >= -180 ~ rel_phase)) %>%
+    # round to the nearest degree
+    mutate(rel_phase_rounded = round(rel_phase_rescale, digits = 0))
+    
+    # create frequency table for non-binned data
+    next_table <- as.data.frame(table(next_data$rel_phase_rounded))
+    
+    # # make into binned groups
+    # min_val = -180
+    # max_val = 180
+    # bin_size = 5
+    # break_vals = seq(min_val, max_val, bin_size)  
+    # next_data$grouped <- cut(next_data$rel_phase_rounded, breaks = break_vals)
+    # # create data frame and visualize the distribution
+    # next_table <- as.data.frame(table(next_data$grouped))
+    # next_table$bin <- c(1:nrow(next_table))
+    # ggplot(next_table,                                  
+    #        aes(x = bin,
+    #            y = Freq)) + 
+    #   geom_bar(stat = "identity")
+    
+    # add dyad info and save to data frame
+    next_table$dyad = unique(next_data$dyad)
+    next_table$round = unique(next_data$round_number)
+    next_table$ie_condition = unique(next_data$ie_condition)
+    next_table$td_condition = unique(next_data$td_condition)
+    freq_tables = rbind.data.frame(freq_tables,next_table)
+    
+  }
   
 }
 
