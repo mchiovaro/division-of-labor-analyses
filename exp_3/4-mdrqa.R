@@ -20,34 +20,40 @@ source(file = "mdrqa.R")
 split_rounds = split(data,
                      list(data$dyad.round))
 
-# remove the dyad.rounds that had too high rr
-split_rounds[c(38, 63, 138)] = NULL
+# # remove the dyad.rounds that had too high rr
+# split_rounds[c(38, 63, 138)] = NULL 
 
 # empty frame for results
 mdrqa_results = data.frame()
 
+# run through all the rounds
 for (next_round in split_rounds){
   
-  # isolate parameters for next dyad.round
-  chosen.delay = 1
-  chosen.embed = 1
-  chosen.radius = unique(next_round$chosen.radius)
-  
-  # print update
-  print(paste("CRQA: dyad.round ", unique(next_round$dyad.round)))
-  
-  # run MdRQA
-  rec_analysis = mdrqa(data = as.matrix(next_round$sin, next_round$cos), 
-                       emb = 1, # standard for MdRQA
-                       del = 1, # standard for MdRQA
-                       norm = "euc", 
-                       rad = next_round$chosen.radius)
-  
-  # save to dataframe
-  next_data_line = data.frame(c(unique(next_round$dyad.round),
-                                rec_analysis[1:15]))
-  names(next_data_line) = c("dyad.round",names(rec_analysis[1:15]))
-  mdrqa_results = rbind.data.frame(mdrqa_results,next_data_line)
+  # only if it is within the dyad.rounds that are being kept 
+  if(unique(next_round$dyad.round) != "49 . 4" & unique(next_round$dyad.round) != "73 . 4" & unique(next_round$dyad.round) != "54 . 4" & unique(next_round$dyad.round) !=  "58 . 5" & unique(next_round$dyad.round) != "87 . 5"){
+     
+    # isolate parameters for next dyad.round
+    chosen.delay = 1
+    chosen.embed = 1
+    chosen.radius = unique(next_round$chosen.radius)
+    
+    # print update
+    print(paste("CRQA: dyad.round ", unique(next_round$dyad.round)))
+    
+    # run MdRQA
+    rec_analysis = mdrqa(data = as.matrix(next_round$sin, next_round$cos), 
+                         emb = 1, # standard for MdRQA
+                         del = 1, # standard for MdRQA
+                         norm = "euc", 
+                         rad = next_round$chosen.radius)
+    
+    # save to dataframe
+    next_data_line = data.frame(c(unique(next_round$dyad.round),
+                                  rec_analysis[1:15]))
+    names(next_data_line) = c("dyad.round",names(rec_analysis[1:15]))
+    mdrqa_results = rbind.data.frame(mdrqa_results,next_data_line)   
+    
+  }
   
 }
 

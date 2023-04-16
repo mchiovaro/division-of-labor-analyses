@@ -20,9 +20,6 @@ source(file = "mdrqa.R")
 split_rounds = split(data,
                      list(data$dyad.round))
 
-# remove the dyad.rounds that had too high rr
-split_rounds[c(63, 109, 124, 125)] = NULL
-
 # empty frame for results
 mdrqa_results = data.frame()
 
