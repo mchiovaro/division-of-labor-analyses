@@ -32,53 +32,46 @@ all_data = rbind.data.frame(dplyr::select(real_data,one_of(shared_variables)),
 real_data = select(real_data,one_of(shared_variables))
 
 # standardize continuous variables to interpret effect sizes (Keith, 2005) and create factors for IVs
-all_data_st = all_data %>% 
-  mutate(DET = scale(DET)) %>% 
-  mutate(timer = scale(timer)) %>% 
-  mutate(round_number = scale(round_number)) %>%
+real_data = real_data %>%
   mutate(dyad = as.factor(dyad)) %>%
   mutate(td_condition = as.factor(td_condition)) %>%
   mutate(ie_condition = as.factor(ie_condition)) %>%
-  mutate(data = as.factor(data))
+  select(-c(data))
 real_data_st = real_data %>% 
   mutate(DET = scale(DET)) %>% 
-  mutate(timer = scale(timer)) %>% 
-  mutate(round_number = scale(round_number)) %>%
-  select(-c(data)) %>% # drop data since not relevant here
-  mutate(dyad = as.factor(dyad)) %>%
-  mutate(td_condition = as.factor(td_condition)) %>%
-  mutate(ie_condition = as.factor(ie_condition))
+  mutate(timer = scale(timer)) 
 all_data = all_data %>%
   mutate(dyad = as.factor(dyad)) %>%
   mutate(td_condition = as.factor(td_condition)) %>%
   mutate(ie_condition = as.factor(ie_condition)) %>%
   mutate(data = as.factor(data))
-real_data = real_data %>%
-  mutate(dyad = as.factor(dyad)) %>%
-  mutate(td_condition = as.factor(td_condition)) %>%
-  mutate(ie_condition = as.factor(ie_condition))
+all_data_st = all_data %>% 
+  mutate(DET = scale(DET)) %>% 
+  mutate(timer = scale(timer))
 
 # construct the raw model
 surrogate.model.raw = lmer(DET ~ 
-                         # fixed effects
-                         data + td_condition + ie_condition + round_number +
-                         data*td_condition + data*ie_condition +
-                         td_condition*ie_condition +
-                         data*td_condition*ie_condition +
-                         # maximal random effect structure allowable
-                         (1 + td_condition | dyad),
-                       data = all_data, REML = FALSE)
+                             # fixed effects
+                             data + td_condition + ie_condition + round_number +
+                             data*td_condition + data*ie_condition + data*round_number +
+                             td_condition*ie_condition + td_condition*round_number + ie_condition*round_number +
+                             data*td_condition*ie_condition + data*td_condition*round_number + data*ie_condition*round_number + td_condition*ie_condition*round_number + 
+                             data*td_condition*ie_condition*round_number +
+                             # maximal random effect structure allowable
+                             (1 + td_condition | dyad),
+                           data = all_data, REML = FALSE)
 pander_lme(surrogate.model.raw,stats.caption = TRUE)
 
 # construct the standardized model
 surrogate.model.st = lmer(DET ~ 
-                         # fixed effects
-                         data + td_condition + ie_condition + round_number +
-                         data*td_condition + data*ie_condition +
-                         td_condition*ie_condition +
-                         data*td_condition*ie_condition +
-                         # random effects of dyad
-                         (1 + td_condition | dyad),
+                            # fixed effects
+                            data + td_condition + ie_condition + round_number +
+                            data*td_condition + data*ie_condition + data*round_number +
+                            td_condition*ie_condition + td_condition*round_number + ie_condition*round_number +
+                            data*td_condition*ie_condition + data*td_condition*round_number + data*ie_condition*round_number + td_condition*ie_condition*round_number + 
+                            data*td_condition*ie_condition*round_number +
+                            # maximal random effect structure allowable
+                            (1 + td_condition | dyad),
                        data = all_data_st, REML = FALSE)
 pander_lme(surrogate.model.st,stats.caption = TRUE)
 
@@ -86,21 +79,23 @@ pander_lme(surrogate.model.st,stats.caption = TRUE)
 
 # raw model
 completion.model.raw = lmer(timer ~ 
-                         # fixed effects
-                         td_condition + ie_condition + round_number +
-                         td_condition*ie_condition +
-                         # random effects of dyad
-                         (1 | dyad),
-                       data = real_data, REML = FALSE)
-pander_lme(completion.model.raw,stats.caption = TRUE)
-
-# raw model
-completion.model.st = lmer(timer ~ 
                               # fixed effects
                               td_condition + ie_condition + round_number +
-                              td_condition*ie_condition +
+                              td_condition*ie_condition + td_condition*round_number + ie_condition*round_number +
+                              td_condition*ie_condition*round_number + 
                               # random effects of dyad
                               (1 | dyad),
+                        data = real_data, REML = FALSE)
+pander_lme(completion.model.raw,stats.caption = TRUE)
+
+# standrardized model
+completion.model.st = lmer(timer ~ 
+                             # fixed effects
+                             td_condition + ie_condition + round_number +
+                             td_condition*ie_condition + td_condition*round_number + ie_condition*round_number +
+                             td_condition*ie_condition*round_number + 
+                             # random effects of dyad
+                             (1 | dyad),
                             data = real_data_st, REML = FALSE)
 pander_lme(completion.model.st,stats.caption = TRUE)
 
@@ -108,21 +103,23 @@ pander_lme(completion.model.st,stats.caption = TRUE)
 
 # raw model
 coordination.model.raw = lmer(DET ~ 
-                          # fixed effects
-                          td_condition + ie_condition + round_number +
-                          td_condition*ie_condition +
-                          # random effects of dyad
-                          (1 + td_condition | dyad),
+                            # fixed effects
+                            td_condition + ie_condition + round_number +
+                            td_condition*ie_condition + td_condition*round_number + ie_condition*round_number +
+                            td_condition*ie_condition*round_number + 
+                            # random effects of dyad
+                            (1 + td_condition | dyad),
                         data = real_data, REML = FALSE)
 pander_lme(coordination.model.raw,stats.caption = TRUE)
 
 # standardized model
 coordination.model.st = lmer(DET ~ 
-                                # fixed effects
-                                td_condition + ie_condition + round_number +
-                                td_condition*ie_condition +
-                                # random effects of dyad
-                                (1 + td_condition | dyad),
+                               # fixed effects
+                               td_condition + ie_condition + round_number +
+                               td_condition*ie_condition + td_condition*round_number + ie_condition*round_number +
+                               td_condition*ie_condition*round_number + 
+                               # random effects of dyad
+                               (1 + td_condition | dyad),
                               data = real_data_st, REML = FALSE)
 pander_lme(coordination.model.st,stats.caption = TRUE)
 
@@ -139,41 +136,39 @@ relphase_vals[, paste("ot", 1:2, sep="")] = t[relphase_vals$raw_relphase + phase
 relphase_freq_data = left_join(relphase_freq_data,relphase_vals, by = c("Var1" = "raw_relphase"))
 
 # create factors for raw model
-relphase_freq_data = relphase_freq_data %>% ungroup() %>%
+relphase_freq_data_raw = relphase_freq_data %>% ungroup() %>%
   mutate(dyad = as.factor(dyad)) %>%
   mutate(td_condition = as.factor(td_condition)) %>%
-  mutate(ie_condition = as.factor(ie_condition)) #%>%
+  mutate(ie_condition = as.factor(ie_condition))
 
 # standardize variables and create factors
-relphase_freq_data_st = relphase_freq_data %>% 
-  mutate(dyad = as.factor(dyad)) %>%
-  mutate(td_condition = as.factor(td_condition)) %>%
-  mutate(ie_condition = as.factor(ie_condition)) %>%
+relphase_freq_data_st = relphase_freq_data_raw %>% 
   mutate(Var1 = scale(Var1)) %>%
-  mutate(Freq = scale(Freq)) %>%
-  mutate(round = scale(round)) %>%
-  mutate(ot1 = scale(ot1)) %>%
-  mutate(ot2 = scale(ot2))
+  mutate(Freq = scale(Freq))
 
 # raw model
-relphase.gca.raw = lmer(Freq ~ ie_condition + td_condition + ot1 + ot2 +
-                                      ie_condition*td_condition + ot1*ot2 +
-                                      td_condition*ot1 + ie_condition*ot1 + td_condition*ie_condition*ot1 +
-                                      td_condition*ot2 + ie_condition*ot2 + td_condition*ie_condition*ot2 +
-                                      td_condition *ot1*ot2 + ie_condition*ot1*ot2 +
-                                      td_condition*ie_condition*ot1*ot2 +
-                                      (1 | dyad),
-                                    data=relphase_freq_data, REML=FALSE)
+relphase.gca.raw = lmer(Freq ~ 
+                          # fixed effects
+                          ie_condition + td_condition + ot1 + ot2 +
+                          ie_condition*td_condition + ot1*ot2 + td_condition*ot1 + 
+                          ie_condition*ot1 + td_condition*ot2 + ie_condition*ot2 +
+                          td_condition*ie_condition*ot1 + td_condition*ie_condition*ot2 + td_condition*ot1*ot2 + ie_condition*ot1*ot2 +
+                          td_condition*ie_condition*ot1*ot2 +
+                          # random effect (ot1 or ot2?)
+                          (1 + ot1 | dyad),
+                        data=relphase_freq_data_raw, REML=FALSE)
 pander_lme(relphase.gca.raw,stats.caption = TRUE)
 
 # standardized model
-relphase.gca.st = lmer(Freq ~ ie_condition + td_condition + ot1 + ot2 +
-                         ie_condition*td_condition + ot1*ot2 +
-                         td_condition*ot1 + ie_condition*ot1 + td_condition*ie_condition*ot1 +
-                         td_condition*ot2 + ie_condition*ot2 + td_condition*ie_condition*ot2 +
-                         td_condition *ot1*ot2 + ie_condition*ot1*ot2 +
+relphase.gca.st = lmer(Freq ~ 
+                         # fixed effects
+                         ie_condition + td_condition + ot1 + ot2 +
+                         ie_condition*td_condition + ot1*ot2 + td_condition*ot1 + 
+                         ie_condition*ot1 + td_condition*ot2 + ie_condition*ot2 +
+                         td_condition*ie_condition*ot1 + td_condition*ie_condition*ot2 + td_condition*ot1*ot2 + ie_condition*ot1*ot2 +
                          td_condition*ie_condition*ot1*ot2 +
-                         (1| dyad),
+                         # random effect
+                         (1 + ot1 | dyad),
                         data=relphase_freq_data_st, REML=FALSE)
 pander_lme(relphase.gca.st,stats.caption = TRUE)
 
