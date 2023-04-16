@@ -33,6 +33,7 @@ radius_stats_all = rbind.data.frame(rbindlist(lapply(radius_files, fread, sep=",
 recheck_radii = radius_stats_all %>% ungroup() %>%
   dplyr::filter(from.target > .5) %>%
   dplyr::select(dyad.round, chosen.radius,rr, from.target)
+write.table(recheck_radii,'./data/removed_dyad-rounds.csv', sep=',',row.names=FALSE,col.names=TRUE)
 
 # filter and save the final radii
 radii_final = radius_stats_all %>% ungroup() %>%

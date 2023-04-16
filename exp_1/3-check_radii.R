@@ -14,7 +14,7 @@ data = read.table('./data/data_prepped-exp_1.csv',
                   sep=',', header = TRUE)
 
 # load in files
-radius_files = list.files('./data/radii_all', 
+radius_files = list.files('./data/radii', 
                           pattern='radii*',
                           full.names = TRUE)
 
