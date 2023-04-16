@@ -42,14 +42,14 @@ print(paste("Chosen dyad.round: ", chosen.participant))
 next.participant = data %>%
   dplyr::filter(dyad.round == chosen.participant)
 next.participant = next.participant[complete.cases(next.participant$rel_phase), ]
-rm(data) # get rid of the big data set
+#rm(data) # get rid of the big data set
 
 # create list of radii to search
 next.radius = as.data.frame(seq(1e-50, .5, by=.1))
 colnames(next.radius) = c("chosen.radius")
 
 # set target rr (smallest possible rr while under 15%)
-target.rr = 5
+target.rr = 6
 
 # set target distance as large so the loop starts the search
 from.target = 99

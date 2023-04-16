@@ -32,8 +32,6 @@ source(file = "mdrqa.R")
 # read the data
 data = read.table('./data/data_prepped-exp_3.csv', 
                   sep=',', header = TRUE)
-# drop rows before the group phase statistic can be calculated
-data = data[complete.cases(data$mean_team_sync), ]
 
 # identify what participant-round we're working with
 dyad.rounds <- unique(data$dyad.round)
