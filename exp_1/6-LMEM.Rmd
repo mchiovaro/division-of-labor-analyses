@@ -1,0 +1,579 @@
+---
+title: "6-LMEM"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+date: "2023-04-17"
+---
+
+NOTE: Change all fixed effects to just have the asterisks
+
+## Set up
+
+```{r setup, include=FALSE, echo=FALSE}
+
+# clear workspace and load packages
+rm(list=ls())
+#setwd("./Documents/github/division-of-labor-analyses/exp_1")
+source("../required_packages.R")
+source("../libraries_and_functions.R")
+
+#install.packages("pander")
+library(pander)
+
+# read in data
+shuffled_data = read.table('./data/shuffled_mdrqa_and_conditions.csv', 
+                  sep=',', header = TRUE)
+real_data = read.table('./data/mdrqa_and_conditions.csv', 
+                       sep=',', header = TRUE)
+relphase_freq_data = read.table('./data/freq_tables-exp_1.csv', 
+                                sep=',', header = TRUE)
+
+```
+
+## Data preparation
+
+```{r data-prep, echo=FALSE}
+
+# add an indicator ("data") for real (.5) or surrogate (-.5) data ######
+real_data$data <- "Real"
+shuffled_data <- shuffled_data %>%
+  mutate(data = "Surrogate") %>%
+  mutate(DET = replace_na(DET, 0)) # fill in missing DET values
+
+# specify variables to keep and bind the data
+shared_variables = names(real_data)[names(real_data) %in% names(shuffled_data)]
+shared_variables = shared_variables[c(4,17:20, 22:23)]
+all_data = rbind.data.frame(dplyr::select(real_data,one_of(shared_variables)),
+                                 dplyr::select(shuffled_data,one_of(shared_variables)))
+real_data = select(real_data,one_of(shared_variables))
+
+# Create factors and rename variables for nicer plots
+real_data = real_data %>%
+  mutate(dyad = as.factor(dyad)) %>%
+  mutate(td_condition = as.factor(td_condition)) %>%
+  mutate(ie_condition = as.factor(ie_condition)) %>%
+  select(-c(data)) %>%
+  rename(TD = td_condition) %>% 
+  rename(IE = ie_condition) %>% 
+  rename(Determinism = DET) %>% 
+  rename(Time = timer) %>% 
+  rename(Dyad = dyad) %>% 
+  rename(Round = round_number)
+all_data = all_data %>%
+  mutate(dyad = as.factor(dyad)) %>%
+  mutate(td_condition = as.factor(td_condition)) %>%
+  mutate(ie_condition = as.factor(ie_condition)) %>%
+  mutate(data = as.factor(data)) %>%
+  rename(TD = td_condition) %>% 
+  rename(IE = ie_condition) %>% 
+  rename(Determinism = DET) %>% 
+  rename(Time = timer) %>% 
+  rename(Dyad = dyad) %>% 
+  rename(Round = round_number) %>% 
+  rename(Data = data)
+
+```
+
+## Hypothesis 1: More deterministic than chance.
+
+```{r H1-model, echo=FALSE}
+
+# construct the raw model
+surrogate.model.raw = lmer(Determinism ~ 
+                             # fixed effects
+                             Data + 
+                             # maximal random effect structure allowed
+                             (1 | Dyad), # don't add into slope is not a fixed effect
+                           data = all_data, REML = FALSE)
+pander_lme(surrogate.model.raw,stats.caption = TRUE)
+#tab_model(surrogate.model.raw)
+
+# find residual DF for effect size calculation
+summary(surrogate.model.raw) # df.resid is the way to go (it's more conservative here)
+df.residual = df.residual(surrogate.model.raw)
+
+# check out effect sizes for significant effects
+t_to_eta2(t = c(108.536),
+          df_error = c(df.residual)) 
+
+# check out effect sizes
+effectsizes_H1 <- as.data.frame(t_to_eta2(t = c(108.536),
+                                          df_error = c(df.residual)))
+
+# build the effect size table
+colnames(effectsizes_H1) <- c("Partial Eta2", "CI", "CI Low" , "CI High" )
+effectsizes_H1 <- effectsizes_H1 %>% mutate_if(is.numeric, round, digits=3) %>% 
+  select(-CI) %>%
+  mutate(Predictor = c("Data [Surrogate]")) %>%
+  relocate(Predictor)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+# build table
+pander(effectsizes_H1, caption = "")
+
+# save the H1 model
+#tab_model(surrogate.model.raw, file = "./results/figures/exp_1-H1-LME_table.doc")
+
+```
+
+```{r H1-plots, each=FALSE, echo=FALSE}
+
+# specify global plotting variables for type of data: magma palette
+real = "#fc8961"
+surrogate = "#b73779" 
+
+# create boxplot
+ggplot(all_data, aes(x=Data, y=Determinism, fill = Data)) + 
+  geom_boxplot(show.legend = FALSE) +
+  #ggtitle("Determinism of Real vs. Surrogate Data") +
+  theme_grey(base_size = 15) +
+  scale_fill_manual(values = c(real, surrogate)) +
+  xlab('Data Type') 
+ggsave("./results/figures/exp_1-H1_plot.png")
+
+```
+
+## Hypothesis 2: Bi-directional task switching will result in faster completion times.
+
+For this model, TD 1 is the equal task demand condition and IE 1 is the bidirectional switching condition. Given that these are the intended reference levels, the dummy coding by lme4 will suffice. Otherwise, we could use 'contrasts(real_data$X) = contr.treatment(3, base = 2)' to reassign the reference variable (X). This will need to be done for experiment 2. 
+
+```{r H2-model, each=FALSE, echo=FALSE}
+
+# check on normality of Time
+shapiro.test(real_data$Time)
+shapiro.test(log(real_data$Time)) # still not > .05, but more normal.
+shapiro.test(scale(real_data$Time))
+
+# take log of time
+real_data <- real_data %>% mutate(Time = log(Time))
+
+# raw model
+completion.model.raw = lmer(Time ~ 
+                              # fixed effects
+                              TD*IE*Round + 
+                              # random effects of dyad
+                              (1 | Dyad),
+                        data = real_data, REML = FALSE)
+pander_lme(completion.model.raw,stats.caption = TRUE)
+#tab_model(completion.model.raw)
+
+# find residual DF for effect size calculation
+anova(completion.model.raw) # gives DenDF - most conservative across effects
+df.residual.td = 148.71
+df.residual.td.ie = 148.44
+df.residual.td.round = 150.81
+
+# check out effect sizes
+effectsizes_H2 <- as.data.frame(t_to_eta2(t = c(6.252, -2.629, -2.025),
+          df_error = c(df.residual.td, df.residual.td.ie, df.residual.td.round)) )
+
+# build the effect size table
+colnames(effectsizes_H2) <- c("Partial Eta2", "CI", "CI Low" , "CI High" )
+effectsizes_H2 <- effectsizes_H2 %>% mutate_if(is.numeric, round, digits=3) %>% 
+  select(-CI) %>%
+  mutate(Predictor = c("TD [2]", "TD [2] x IE [2]", "TD [3] x Round")) %>%
+  relocate(Predictor)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+# build table
+pander(effectsizes_H2, caption = "")
+
+```
+
+```{r H2-posthoc, echo=FALSE}
+
+# post-hoc of IE*TD2
+posthoc.ie.td <- (emmeans(completion.model.raw, list(pairwise ~ IE*TD), adjust = "tukey"))[2]
+posthoc.ie.td.df <- as.data.frame(posthoc.ie.td)
+# add significance stars
+stars <- as.data.frame(stars.pval(posthoc.ie.td.df[,6]))
+posthoc.ie.td.df <- cbind(posthoc.ie.td.df, stars)
+# rename columns
+colnames(posthoc.ie.td.df) <- c("Pairwise Comparison", "Estimate", "Std. Error", "DF", "t-value", "Adjusted p-value", " ")
+posthoc.ie.td.df <- posthoc.ie.td.df %>% mutate_if(is.numeric, round, digits=3)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('round', 3)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+
+# build table
+pander(posthoc.ie.td.df, caption = "p < .10, * p < .05, ** p < .001")
+
+```
+
+```{r H2-plots, each=FALSE, echo=FALSE}
+
+# specify global plotting variables for TD: magma pallete
+TD1 = "#fcfdbf"
+TD2 = "#fc8961" 
+TD3 = "#b73779"
+TDcolors = c(TD1, TD2, TD3)
+# specify global plotting variables for IE: viridis pallete
+IE1 = "#fde725"
+IE2 = "#21918c"
+IE3 = "#3b528b"
+IEcolors = c(IE1, IE2, IE3)
+
+# interaction between TD and IE
+ggplot(real_data) +
+  aes(x = TD, y = Time, fill = TD) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~IE, labeller = as_labeller(c("1"='IE 1', "2"='IE 2', "3"='IE 3'))) +
+  scale_fill_manual(values = TDcolors) + # magma
+  ggtitle("Impact of Task Demand and Individual Effectivities on Time") +
+  theme_grey(base_size = 12)
+ggsave("./results/figures/exp_1-H2-plot_TDxIE.png")
+
+# interaction between TD and Round
+ggplot(real_data) +
+  aes(x = as.factor(Round), y = Time, fill = as.factor(Round)) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~TD, labeller = as_labeller(c("1"='TD 1', "2"='TD 2', "3"='TD 3'))) +
+  scale_fill_viridis(discrete = TRUE, option = "rocket") +
+  ggtitle("Impact of Task Demand and Round on Time") +
+  theme_grey(base_size = 12) +
+  labs(fill = "Round") +
+  xlab('Round')
+ggsave("./results/figures/exp_1-H2-plot_TDxIExRound.png")
+
+```
+
+## Hypothesis 3: Bi-directional task switching leads to more time in relative coordination.
+
+Once again, the reference levels are appropriately coded by the default dummy coding of lme4.
+
+```{r H3-model, each=FALSE, echo=FALSE}
+
+# raw model
+coordination.model.raw = lmer(Determinism ~ 
+                            # fixed effects
+                            TD*IE*Round + 
+                            # random effects of dyad
+                            (1 + TD | Dyad),
+                        data = real_data, REML = FALSE)
+pander_lme(coordination.model.raw,stats.caption = TRUE)
+#tab_model(coordination.model.raw)
+# save the H2 and H3 model as one
+#tab_model(completion.model.raw, coordination.model.raw, file = "./results/figures/exp_1-H2_H3-LME_table.doc")
+
+# find residual DF for effect size calculation
+anova(coordination.model.raw) # gives DenDF
+df.residual.td = 122.44
+
+# check out effect sizes
+effectsizes_H3 <- as.data.frame(t_to_eta2(t = c(2.275), 
+                                          df_error = c(df.residual.td)))
+
+# build the effect size table
+colnames(effectsizes_H3) <- c("Partial Eta2", "CI", "CI Low" , "CI High" )
+effectsizes_H3 <- effectsizes_H3 %>% mutate_if(is.numeric, round, digits=3) %>% 
+  select(-CI) %>%
+  mutate(Predictor = c("TD [2]")) %>%
+  relocate(Predictor)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+# build table
+pander(effectsizes_H3, caption = "")
+
+```
+
+```{r H3-posthoc, echo=FALSE}
+
+# post-hoc test of TD
+posthoc.td <- emmeans(coordination.model.raw, list(pairwise ~ TD), adjust = "tukey")[2]
+posthoc.td.df <- as.data.frame(posthoc.td)
+# add significance stars
+stars <- as.data.frame(stars.pval(posthoc.td.df[,6]))
+posthoc.td.df <- cbind(posthoc.td.df, stars)
+# rename columns
+colnames(posthoc.td.df) <- c("Pairwise Comparison", "Estimate", "Std. Error", "DF", "t-value", "Adjusted p-value", " ")
+posthoc.td.df <- posthoc.td.df %>% mutate_if(is.numeric, round, digits=3)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('round', 3)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+
+# build table
+pander(posthoc.td.df, caption = "p < .10, * p < .05, ** p < .001")
+
+```
+
+```{r H3-plots, each=FALSE, echo=FALSE}
+
+# effect of TD
+ggplot(real_data, aes(x=TD, y=Determinism, fill = TD)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = TDcolors) +
+  ggtitle("Impact of Task Demand on Relative Coordination") +
+  theme_grey(base_size = 12)
+ggsave("./results/figures/exp_1-H3-plot_TD.png")
+
+```
+
+## Hypothesis 4: In I.E. condition 2, P2 will adapt to (follow) P1
+
+Once again, the reference levels are appropriately coded by the default dummy coding of lme4.
+
+```{r prepare-data, each=FALSE, echo=FALSE}
+# create orthogonal polynomials for determining leading-following (first-order) and sychrony (second-order).
+raw_relphase = min(relphase_freq_data$Var1):max(relphase_freq_data$Var1)
+relphase_vals = data.frame(raw_relphase)
+phase_offset = (0-min(raw_relphase)) + 1
+t = stats::poly((raw_relphase + phase_offset), 2)
+relphase_vals[, paste("ot", 1:2, sep="")] = t[relphase_vals$raw_relphase + phase_offset, 1:2]
+
+# join it to the original data table
+relphase_freq_data = left_join(relphase_freq_data,relphase_vals, by = c("Var1" = "raw_relphase"))
+
+# create factors and rename variables
+relphase_freq_data_raw = relphase_freq_data %>% ungroup() %>%
+  mutate(dyad = as.factor(dyad)) %>%
+  mutate(td_condition = as.factor(td_condition)) %>%
+  mutate(ie_condition = as.factor(ie_condition)) %>%
+  # scale ot1, ot2, and round and log transform frequency
+  mutate(Freq = log(Freq)) %>%
+  mutate(ot1 = scale(ot1)) %>%
+  mutate(ot2 = scale(ot2)) %>%
+  mutate(round = scale(round)) %>%
+  rename(TD = td_condition) %>% 
+  rename(IE = ie_condition) %>% 
+  rename(Dyad = dyad) %>% 
+  rename(Round = round) %>% 
+  rename(Frequency = Freq) %>% 
+  rename(Relative_Phase = Var1)
+
+```
+
+
+```{r H4-model, each=FALSE, echo=FALSE}
+
+# raw model
+relphase.gca.raw = lmer(Frequency ~ 
+                          # fixed effects
+                          Round +
+                          TD*IE*ot1*ot2 +
+                          # random effect (ot1 or ot2?)
+                          (1 | Dyad),
+                        data=relphase_freq_data_raw, REML=FALSE)
+pander_lme(relphase.gca.raw,stats.caption = TRUE)
+#tab_model(relphase.gca.raw)
+
+# find residual DF for effect size calculation
+anova(relphase.gca.raw) # gives DenDF
+df.resid.td = 54156
+df.resid.round = 54163
+df.resid.ot1 = 54149
+df.resid.ot2 = 54140
+df.resid.td.ie = 54150
+df.resid.td.ot1 = 54146
+df.resid.ie.ot1 = 54149
+df.resid.td.ot2 = 54140
+df.resid.td.ie.ot1 = 54146
+df.resid.td.ie.ot2 = 54140
+df.resid.ie.ot1.ot2 = 54143
+df.resid.td.ie.ot1.ot2 = 54141
+  
+# check out effect sizes
+effectsizes_H4 <- as.data.frame(t_to_eta2(t = c(-5.252, 7.312, 2.548, 2.582, 
+                                                3.051, -2.761, -3.354, -2.955, 
+                                                -2.445, -2.186, 2.217, 2.334, 
+                                                -2.576, -2.755, -4.09, 3.962, 
+                                                4.645, 3.106, -2.009, 2.786, -2.491),
+                                              df_error = c(df.resid.round, 
+                                                           df.resid.td,
+                                                           df.resid.td,
+                                                           df.resid.ot1, 
+                                                           df.resid.ot2, 
+                                                           df.resid.td.ie, 
+                                                           df.resid.td.ie, 
+                                                           df.resid.td.ie, 
+                                                           df.resid.td.ie, 
+                                                           df.resid.td.ot1,
+                                                           df.resid.ie.ot1, 
+                                                           df.resid.ie.ot1, 
+                                                           df.resid.td.ot2, 
+                                                           df.resid.td.ot2, 
+                                                           df.resid.td.ie.ot1, 
+                                                           df.resid.td.ie.ot1, 
+                                                           df.resid.td.ie.ot2, 
+                                                           df.resid.td.ie.ot2, 
+                                                           df.resid.ie.ot1.ot2, 
+                                                           df.resid.td.ie.ot1.ot2,
+                                                           df.resid.td.ie.ot1.ot2)))
+
+# build the effect size table
+colnames(effectsizes_H4) <- c("Partial Eta2", "CI", "CI Low" , "CI High" )
+effectsizes_H4 <- effectsizes_H4 %>% mutate_if(is.numeric, round, digits=4) %>% 
+  select(-CI) %>%
+  mutate(Predictor = c("Round", "TD [2]", "TD [3]", "ot1", "ot2", "TD [2] x IE [2]", 
+                       "TD [3] x IE [2]", "TD [2] x IE [3]", "TD [3] x IE [3]", 
+                       "TD [2] x ot1", "IE [2] x ot1", "IE [3] x ot1", "TD [2] x ot2",
+                       "TD [3] x ot2", "TD [2] x IE [3] x ot1", "TD [3] x IE [3] x ot1",
+                       "TD [2] x IE [2] x ot2", "TD [3] x IE [2] x ot2",
+                       "IE [3] x ot1 x ot2", "TD [2] x IE [3] x ot1 X ot2",
+                       "TD [3] x IE [3] x ot1 x ot2")) %>%
+  relocate(Predictor)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('keep.trailing.zeros', TRUE)
+panderOptions('round', 4)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+# build table
+pander(effectsizes_H4, caption = "")
+
+```
+
+```{r H4-posthoc, echo=FALSE}
+
+# visualize the regression lines
+emmip(relphase.gca.raw, IE ~ ot1, cov.reduce = range) +
+  scale_color_manual(values=IEcolors)
+ggsave('./results/figures/exp_1-H4-regression_IE_ot1.png') 
+
+# post-hoc of IE*ot1
+posthoc.ie.ot1 <- emtrends(relphase.gca.raw, "IE", var = "ot1")
+posthoc.ie.ot1.df <- as.data.frame(pairs(posthoc.ie.ot1))
+# add significance stars
+stars <- as.data.frame(stars.pval(posthoc.ie.ot1.df[,6]))
+posthoc.ie.ot1.df <- cbind(posthoc.ie.ot1.df, stars)
+# rename columns
+colnames(posthoc.ie.ot1.df) <- c("Pairwise Comparison", "Estimate", "Std. Error", "DF", "t-value", "Adjusted p-value", " ")
+posthoc.ie.ot1.df <- posthoc.ie.ot1.df %>% mutate_if(is.numeric, round, digits=3) %>%
+  select(-DF)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('round', 3)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+
+# build table
+pander(posthoc.ie.ot1.df, caption = "p < .10, * p < .05, ** p < .001")
+
+```
+
+```{r H4-hist-plots, each=FALSE, echo=FALSE}
+
+# plot by dyad (IE 1)
+ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = IE)) + 
+  geom_histogram(binwidth = 20, color = "black", show.legend = FALSE) +
+  facet_wrap(~as.numeric(Dyad)) +
+  scale_fill_manual(values = IEcolors, name = "IE") +
+  xlab('Relative Phase') +
+  ylab('Frequency') +
+  ggtitle("Frequency of Relative Phase by Dyad (IE 1)") +
+  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, page = 1, labeller = labeller('IE:Dyad' = c('1:1'="Dyad 1", 
+                                                                                                          '1:3'="Dyad 3", 
+                                                                                                          '1:5'="Dyad 5", 
+                                                                                                          '1:8'="Dyad 8", 
+                                                                                                          '1:10'="Dyad 10", 
+                                                                                                          '1:14'="Dyad 14", 
+                                                                                                          '1:15'="Dyad 15", 
+                                                                                                          '1:18'="Dyad 18", 
+                                                                                                          '1:21'="Dyad 21"))) +
+  theme_grey(base_size = 12) +
+  scale_x_continuous(breaks=c(-180,0,180))
+ggsave('./results/figures/exp_1-H4-dyad_hist_IE1.png')
+
+# plot by dyad (IE 2)
+ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = IE)) + 
+  geom_histogram(binwidth = 20, color = "black", show.legend = FALSE) +
+  facet_wrap(~as.numeric(Dyad)) +
+  scale_fill_manual(values = IEcolors, name = "IE") +
+  xlab('Relative Phase') +
+  ylab('Frequency') +
+  ggtitle("Frequency of Relative Phase by Dyad (IE 2)") +
+  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, page = 2, labeller = labeller('IE:Dyad' = c('2:9'="Dyad 9", 
+                                                                                                          '2:12'="Dyad 12", 
+                                                                                                          '2:16'="Dyad 16", 
+                                                                                                          '2:17'="Dyad 17", 
+                                                                                                          '2:19'="Dyad 19", 
+                                                                                                          '2:22'="Dyad 22", 
+                                                                                                          '2:24'="Dyad 24", 
+                                                                                                          '2:27'="Dyad 27", 
+                                                                                                          '2:31'="Dyad 31"))) +
+  theme_grey(base_size = 12) +
+  scale_x_continuous(breaks=c(-180,0,180))
+ggsave('./results/figures/exp_1-H4-dyad_hist_IE2.png')
+
+# plot by dyad (IE 3)
+ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = IE)) + 
+  geom_histogram(binwidth = 20, color = "black", show.legend = FALSE) +
+  facet_wrap(~as.numeric(Dyad)) +
+  scale_fill_manual(values = IEcolors, name = "IE") +
+  xlab('Relative Phase') +
+  ylab('Frequency') +
+  ggtitle("Frequency of Relative Phase by Dyad (IE 3)") +
+  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, page = 3, labeller = labeller('IE:Dyad' = c('3:2'="Dyad 2", 
+                                                                                                          '3:4'="Dyad 4", 
+                                                                                                          '3:6'="Dyad 6", 
+                                                                                                          '3:7'="Dyad 7", 
+                                                                                                          '3:11'="Dyad 11", 
+                                                                                                          '3:13'="Dyad 13", 
+                                                                                                          '3:20'="Dyad 20", 
+                                                                                                          '3:23'="Dyad 23", 
+                                                                                                          '3:26'="Dyad 26"))) +
+  theme_grey(base_size = 12) +
+  scale_x_continuous(breaks=c(-180,0,180))
+ggsave('./results/figures/exp_1-H4-dyad_hist_IE3.png')
+
+# plot histograms by IE collapsed across dyads
+ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = IE)) + 
+  geom_histogram(binwidth = 10, color = "black", show.legend = FALSE) +
+  facet_wrap(~as.numeric(IE), labeller = as_labeller(c("1"='IE 1', "2"='IE 2', "3"='IE 3'))) +
+  scale_fill_manual(values = IEcolors, name = "IE") +
+  xlab('Relative Phase') +
+  ylab('Frequency') +
+  ggtitle("Frequency of Relative Phase by IE Condition") +
+  theme_grey(base_size = 12) +
+  scale_x_continuous(breaks=c(-180,0,180))
+ggsave('./results/figures/H4-histogram_IE_collapsed.png')
+
+# plot histograms by TD collapsed across dyads
+ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = TD)) + 
+  geom_histogram(binwidth = 10, color = "black", show.legend = FALSE) +
+  facet_wrap(~as.numeric(TD), labeller = as_labeller(c("1"='TD 1', "2"='TD 2', "3"='TD 3'))) +
+  scale_fill_manual(values = TDcolors, name = "TD") +
+  xlab('Relative Phase') +
+  ylab('Frequency') +
+  ggtitle("Frequency of Relative Phase by TD Condition") +
+  theme_grey(base_size = 12) +
+  scale_x_continuous(breaks=c(-180,0,180))
+ggsave('./results/figures/H4-histogram_TD_collapsed.png')
+
+# plot histograms by TD*IE collapsed across dyads
+ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = IE)) + 
+  geom_histogram(binwidth = 10, color = "black", show.legend = FALSE) +
+  facet_grid(TD~IE, labeller = labeller(TD = c('1'="TD 1", '2'="TD 2", '3'="TD 3"), IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
+  scale_fill_manual(values = IEcolors) +
+  xlab('Relative Phase') +
+  ylab('Frequency') +
+  ggtitle("Frequency of Relative Phase by TD and IE") +
+  theme_grey(base_size = 15) +
+  scale_x_continuous(breaks=c(-180,0,180))
+ggsave('./results/figures/H4-histogram_TD*IE_collapsed.png')
+
+```
