@@ -9,7 +9,19 @@ required_packages = c(
   'crqa',
   'tidyr',
   'tseriesChaos',
-  'scales'
+  'scales',
+  'effectsize',
+  'gtable',
+  'gridExtra',
+  'gtools',
+  'lme4',
+  'sjPlot',
+  'emmeans',
+  'viridis',
+  'ggforce',
+  'data.table',
+  'scales',
+  'tidyr'
 )
 
 # load required packages

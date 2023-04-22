@@ -9,7 +9,19 @@ required_packages = c(
   'crqa',
   'tidyr',
   'tseriesChaos',
-  'scales'
+  'scales',
+  'effectsize',
+  'gtable',
+  'gridExtra',
+  'gtools',
+  'lme4',
+  'sjPlot',
+  'emmeans',
+  'viridis',
+  'ggforce',
+  'data.table',
+  'scales',
+  'tidyr'
 )
 
 # install missing packages (adapted from <http://stackoverflow.com/a/4090208> and a-paxton/perception-memory-coordination)
