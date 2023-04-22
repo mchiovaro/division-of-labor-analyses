@@ -15,7 +15,7 @@ rm(list=ls())
 setwd("./Documents/github/division-of-labor-analyses/exp_3")
 # install.packages("pracma")
 library(pracma) # for deg2rad function
-set.seed(2022)
+set.seed(2023)
 
 #### 2. read in raw data  ####
 d46 <- read.csv("./data/raw/46-movementdata.csv", header=FALSE) 
@@ -116,10 +116,10 @@ d88 <- dfs[[36]]
 d46_filt <- d46 %>% filter(Time > 347.56) #r1 restarted 
 d47_filt <- d47 %>% filter(Time < 397.38 | Time > 448.22) # r4 restarted 
 d47_filt <- d47_filt %>% filter(Time < 556.46 | Time > 595.24) # r5 restarted 
-d48_filt <- d48 %>% filter(round_number != 2) %>%
+d48_filt <- d48 %>% filter(round_number != 2) %>% # r2 removed entirely
   filter(Time < 1002.32 | Time > 1034) # r3 restarted 
 d48_filt <- d48_filt %>% filter(Time < 1134.04 | Time > 1192.48) # r4 restarted 
-d48_filt <- d48_filt %>% filter(round_number != 5) # MAYBE - bc they picked up last pellet from wrong side
+d48_filt <- d48_filt %>% filter(round_number != 5) # r5 removed entirely
 d49_filt <- d49 %>% filter(Time > 181.32) # r1 restarted 
 d54_filt <- d54 %>% filter(Time < 1090.7 | Time > 1111.4) # r4 restarted 
 d54_filt <- d54_filt %>% filter(Time < 1231.72 | Time > 1241.28) # r5 restarted 
@@ -128,8 +128,8 @@ d56_filt <- d56_filt %>% filter(Time < 568.32 | Time > 600.54) # r3 restarted
 d56_filt <- d56_filt %>% filter(Time < 816.8 | Time > 835.36) # r6 restarted  
 d57_filt <- d57 %>% filter(Time < 329.3 | Time > 345.7) # r2 restarted 
 d58_filt <- d58 %>% filter(Time < 1047.16 | Time > 1100.58) # r2 restarted 
-d59_filt <- d59 %>% filter(Time >= 172.48  & Time <= 252.54 & round_number == 1) # r2 glitched out; keep first r1 
-d59_filt <- d59_filt %>% filter(Time >= 1397.54 & Time <= 1416.82 & round_number == 2) # r2 glitched out; keep second r2 
+d59_filt <- d59 %>% filter(!(Time >= 172.48  & Time <= 252.54 & round_number == 1)) # r2 glitched out; keep first r1 
+d59_filt <- d59_filt %>% filter(!(Time >= 1397.54 & Time <= 1416.82 & round_number == 2)) # r2 glitched out; keep second r2 
 d62_filt <- d62 %>% filter(round_number != 3) # remove entire round 3 
 d63_filt <- d63 %>% filter(Time < 275.1 | Time > 333.06) # r2 restarted 
 d66_filt <- d66 %>% filter(round_number != 1) # remove entire round 1
@@ -160,12 +160,14 @@ d82_filt <- d82_filt %>% filter(Time < 1423.32 | Time > 1455.1) # r5 restarted
 d82_filt <- d82_filt %>% filter(round_number != 6) # r6 removed entirely bc of glitch
 
 # bind data
-formatted_all <- rbind(d46_filt, d47_filt, d48_filt, d49_filt, d50, d51, 
-                       d54_filt, d55, d56_filt, d57_filt, d58_filt, d59_filt,
-                       d60, d61, d62_filt, d63_filt, d64, d66_filt, d67,
-                       d68_filt, d69_filt, d70, d71_filt, d72, d73_filt, 
-                       d74_filt, d75_filt, d76_filt, d77_filt, d78, d80_filt,
-                       d81_filt, d82_filt, d86_filt, d87_filt, d88_filt)
+formatted_all <- rbind(d46_filt, d47_filt, d48_filt, d49_filt, d50, 
+                       d51, d54_filt, d55, d56_filt, d57_filt, 
+                       d58_filt, d59_filt, d60, d61, d62_filt, 
+                       d63_filt, d64, d66_filt, d67, d68_filt, 
+                       d69_filt, d70, d71_filt, d72, d73_filt, 
+                       d74_filt, d75_filt, d76_filt, d77_filt, d78, 
+                       d80_filt, d81_filt, d82_filt, d86_filt, d87_filt, 
+                       d88_filt)
 
 #### 4. Generate velocity and timer and rescale free player(s) x-axis ####
 names(formatted_all) <- c("System.DateTime.Now","Time","dyad","round_number",
@@ -282,244 +284,251 @@ directions = data.frame(Time = numeric(),
 # cycle through all rounds for each dyad
 rounds = split(data_prepped,list(data_prepped$dyad,data_prepped$round_number))
 
-# remove the rounds that were dropped due to errors
-rounds = rounds[c(-17, -27, -38, -84, -143, -207)]
+# # remove the rounds that were dropped due to errors
+# rounds = rounds[c(-17, -27, -38, -84, -143, -207)]
 
 # run through each round and mark switches
 for (round in names(rounds)){
   
   # pick out the data to identify movement direction
   data = dplyr::select(rounds[[round]], c(2,3,4,23,24,25,26))
-  data['left_free'] <- NA
-  data['right_free'] <- NA
-  data['left_free2'] <- NA
-  data['right_free2'] <- NA
-  data['left_restrict'] <- NA
-  data['right_restrict'] <- NA
-  data['left_restrict2'] <- NA
-  data['right_restrict2'] <- NA
-  data['transition_free'] <- NA
-  data['transition_restrict'] <- NA
-  data['transition_free2'] <- NA
-  data['transition_restrict2'] <- NA
   
-  # sort data in ascending time
-  data <- data[order(data$Time),]
+  # if it isn't a dyad.round that was dropped
+  if(nrow(data)!=0) {
   
-  # for each line, check for movement direction
-  for(i in 1:(nrow(data)-1)){
+    data['left_free'] <- NA
+    data['right_free'] <- NA
+    data['left_free2'] <- NA
+    data['right_free2'] <- NA
+    data['left_restrict'] <- NA
+    data['right_restrict'] <- NA
+    data['left_restrict2'] <- NA
+    data['right_restrict2'] <- NA
+    data['transition_free'] <- NA
+    data['transition_restrict'] <- NA
+    data['transition_free2'] <- NA
+    data['transition_restrict2'] <- NA
     
-    # free: if moving right and between .9 and 5.6, mark as right free movement
-    if((data$rescale_free_x[i] - data$rescale_free_x[i+1] < 0) & data$rescale_free_x[i] <= 5.6 & data$rescale_free_x[i+1] <= 5.6 & data$rescale_free_x[i] >= .9 & data$rescale_free_x[i+1] >= .9) { 
-      data$right_free[i] = data$rescale_free_x[i] 
-      # if moving left and between .9 and 5.6, mark as left free movement
-    } else if((data$rescale_free_x[i] - data$rescale_free_x[i+1] > 0) & data$rescale_free_x[i] <= 5.6 & data$rescale_free_x[i+1] <= 5.6 & data$rescale_free_x[i] >= .9 & data$rescale_free_x[i+1] >= .9) {
-      data$left_free[i] = data$rescale_free_x[i]
-      # if moving left between -.9 and .9, mark as being at -99
-    } else if((data$rescale_free_x[i] - data$rescale_free_x[i+1] > 0) & (data$rescale_free_x[i] > -.9 & data$rescale_free_x[i] < .9) & (data$rescale_free_x[i+1] > -.9 & data$rescale_free_x[i+1] < .9)) {
-      data$transition_free[i] = -99
-      # if moving right between -.9 and .9, mark as being at 180
-    } else if((data$rescale_free_x[i] - data$rescale_free_x[i+1] < 0) & (data$rescale_free_x[i] > -.9 & data$rescale_free_x[i] < .9) & (data$rescale_free_x[i+1] > -.9 & data$rescale_free_x[i+1] < .9)) {
-      data$transition_free[i] = -99
-    } else {
-      data$right_free[i] = NA
-      data$left_free[i] = NA
+    # sort data in ascending time
+    data <- data[order(data$Time),]
+    
+    # for each line, check for movement direction
+    for(i in 1:(nrow(data)-1)){
+      
+      # free: if moving right and between .9 and 5.6, mark as right free movement
+      if((data$rescale_free_x[i] - data$rescale_free_x[i+1] < 0) & data$rescale_free_x[i] <= 5.6 & data$rescale_free_x[i+1] <= 5.6 & data$rescale_free_x[i] >= .9 & data$rescale_free_x[i+1] >= .9) { 
+        data$right_free[i] = data$rescale_free_x[i] 
+        # if moving left and between .9 and 5.6, mark as left free movement
+      } else if((data$rescale_free_x[i] - data$rescale_free_x[i+1] > 0) & data$rescale_free_x[i] <= 5.6 & data$rescale_free_x[i+1] <= 5.6 & data$rescale_free_x[i] >= .9 & data$rescale_free_x[i+1] >= .9) {
+        data$left_free[i] = data$rescale_free_x[i]
+        # if moving left between -.9 and .9, mark as being at -99
+      } else if((data$rescale_free_x[i] - data$rescale_free_x[i+1] > 0) & (data$rescale_free_x[i] > -.9 & data$rescale_free_x[i] < .9) & (data$rescale_free_x[i+1] > -.9 & data$rescale_free_x[i+1] < .9)) {
+        data$transition_free[i] = -99
+        # if moving right between -.9 and .9, mark as being at 180
+      } else if((data$rescale_free_x[i] - data$rescale_free_x[i+1] < 0) & (data$rescale_free_x[i] > -.9 & data$rescale_free_x[i] < .9) & (data$rescale_free_x[i+1] > -.9 & data$rescale_free_x[i+1] < .9)) {
+        data$transition_free[i] = -99
+      } else {
+        data$right_free[i] = NA
+        data$left_free[i] = NA
+      }
+      
+      # free2: if moving right and between .9 and 5.6, mark as right free movement
+      if((data$rescale_free2_x[i] - data$rescale_free2_x[i+1] < 0) & data$rescale_free2_x[i] <= 5.6 & data$rescale_free2_x[i+1] <= 5.6 & data$rescale_free2_x[i] >= .9 & data$rescale_free2_x[i+1] >= .9) {
+        data$right_free2[i] = data$rescale_free2_x[i]
+        # if moving left and between .9 and 5.6, mark as left free movement
+      } else if((data$rescale_free2_x[i] - data$rescale_free2_x[i+1] > 0) & data$rescale_free2_x[i] <= 5.6 & data$rescale_free2_x[i+1] <= 5.6 & data$rescale_free2_x[i] >= .9 & data$rescale_free2_x[i+1] >= .9) {
+        data$left_free2[i] = data$rescale_free2_x[i]
+        # if moving left between -.9 and .9, mark as being at -99
+      } else if((data$rescale_free2_x[i] - data$rescale_free2_x[i+1] > 0) & (data$rescale_free2_x[i] > -.9 & data$rescale_free2_x[i] < .9) & (data$rescale_free2_x[i+1] > -.9 & data$rescale_free2_x[i+1] < .9)) {
+        data$transition_free2[i] = -99
+        # if moving right between -.9 and .9, mark as being at 180
+      } else if((data$rescale_free2_x[i] - data$rescale_free2_x[i+1] < 0) & (data$rescale_free2_x[i] > -.9 & data$rescale_free2_x[i] < .9) & (data$rescale_free2_x[i+1] > -.9 & data$rescale_free2_x[i+1] < .9)) {
+        data$transition_free2[i] = -99
+      } else {
+        data$right_free2[i] = NA
+        data$left_free2[i] = NA
+      }
+  
+      # restrict: if moving right and between .9 and 5.6, mark as right restrict movement
+      if((data$rescale_restrict_x[i] - data$rescale_restrict_x[i+1] < 0) & data$rescale_restrict_x[i] <= 5.6 & data$rescale_restrict_x[i+1] <= 5.6 & data$rescale_restrict_x[i] >= .9 & data$rescale_restrict_x[i+1] >= .9) {
+        data$right_restrict[i] = data$rescale_restrict_x[i]
+        # if moving left and between .9 and 5.6, mark as left restrict movement
+      } else if((data$rescale_restrict_x[i] - data$rescale_restrict_x[i+1] > 0) & data$rescale_restrict_x[i] <= 5.6 & data$rescale_restrict_x[i+1] <= 5.6 & data$rescale_restrict_x[i] >= .9 & data$rescale_restrict_x[i+1] >= .9) {
+        data$left_restrict[i] = data$rescale_restrict_x[i]
+        # if moving left between -.9 and .9, mark as being at -99
+      } else if((data$rescale_restrict_x[i] - data$rescale_restrict_x[i+1] > 0) & (data$rescale_restrict_x[i] > -.9 & data$rescale_restrict_x[i] < .9) & (data$rescale_restrict_x[i+1] > -.9 & data$rescale_restrict_x[i+1] < .9)) {
+        data$transition_restrict[i] = -99
+        # if moving right between -.9 and .9, mark as being at 180
+      } else if((data$rescale_restrict_x[i] - data$rescale_restrict_x[i+1] < 0) & (data$rescale_restrict_x[i] > -.9 & data$rescale_restrict_x[i] < .9) & (data$rescale_restrict_x[i+1] > -.9 & data$rescale_restrict_x[i+1] < .9)) {
+        data$transition_restrict[i] = -99
+      } else {
+        data$right_restrict[i] = NA
+        data$left_restrict[i] = NA
+      }
+  
+      # restrict2: if moving right and between .9 and 5.6, mark as right restrict movement
+      if((data$rescale_restrict2_x[i] - data$rescale_restrict2_x[i+1] < 0) & data$rescale_restrict2_x[i] <= 5.6 & data$rescale_restrict2_x[i+1] <= 5.6 & data$rescale_restrict2_x[i] >= .9 & data$rescale_restrict2_x[i+1] >= .9) {
+        data$right_restrict2[i] = data$rescale_restrict2_x[i]
+        # if moving left and between .9 and 5.6, mark as left restrict movement
+      } else if((data$rescale_restrict2_x[i] - data$rescale_restrict2_x[i+1] > 0) & data$rescale_restrict2_x[i] <= 5.6 & data$rescale_restrict2_x[i+1] <= 5.6 & data$rescale_restrict2_x[i] >= .9 & data$rescale_restrict2_x[i+1] >= .9) {
+        data$left_restrict2[i] = data$rescale_restrict2_x[i]
+        # if moving left between -.9 and .9, mark as being at -99
+      } else if((data$rescale_restrict2_x[i] - data$rescale_restrict2_x[i+1] > 0) & (data$rescale_restrict2_x[i] > -.9 & data$rescale_restrict2_x[i] < .9) & (data$rescale_restrict2_x[i+1] > -.9 & data$rescale_restrict2_x[i+1] < .9)) {
+        data$transition_restrict2[i] = -99
+        # if moving right between -.9 and .9, mark as being at 180
+      } else if((data$rescale_restrict2_x[i] - data$rescale_restrict2_x[i+1] < 0) & (data$rescale_restrict2_x[i] > -.9 & data$rescale_restrict2_x[i] < .9) & (data$rescale_restrict2_x[i+1] > -.9 & data$rescale_restrict2_x[i+1] < .9)) {
+        data$transition_restrict2[i] = -99
+      } else {
+        data$right_restrict2[i] = NA
+        data$left_restrict2[i] = NA
+      }
+  
     }
     
-    # free2: if moving right and between .9 and 5.6, mark as right free movement
-    if((data$rescale_free2_x[i] - data$rescale_free2_x[i+1] < 0) & data$rescale_free2_x[i] <= 5.6 & data$rescale_free2_x[i+1] <= 5.6 & data$rescale_free2_x[i] >= .9 & data$rescale_free2_x[i+1] >= .9) {
-      data$right_free2[i] = data$rescale_free2_x[i]
-      # if moving left and between .9 and 5.6, mark as left free movement
-    } else if((data$rescale_free2_x[i] - data$rescale_free2_x[i+1] > 0) & data$rescale_free2_x[i] <= 5.6 & data$rescale_free2_x[i+1] <= 5.6 & data$rescale_free2_x[i] >= .9 & data$rescale_free2_x[i+1] >= .9) {
-      data$left_free2[i] = data$rescale_free2_x[i]
-      # if moving left between -.9 and .9, mark as being at -99
-    } else if((data$rescale_free2_x[i] - data$rescale_free2_x[i+1] > 0) & (data$rescale_free2_x[i] > -.9 & data$rescale_free2_x[i] < .9) & (data$rescale_free2_x[i+1] > -.9 & data$rescale_free2_x[i+1] < .9)) {
-      data$transition_free2[i] = -99
-      # if moving right between -.9 and .9, mark as being at 180
-    } else if((data$rescale_free2_x[i] - data$rescale_free2_x[i+1] < 0) & (data$rescale_free2_x[i] > -.9 & data$rescale_free2_x[i] < .9) & (data$rescale_free2_x[i+1] > -.9 & data$rescale_free2_x[i+1] < .9)) {
-      data$transition_free2[i] = -99
-    } else {
-      data$right_free2[i] = NA
-      data$left_free2[i] = NA
+    # rescale the data to be in degrees
+    data$rescaled_free_right = rescale(data$right_free, to = c(0, 180), from = range(.9, 5.6))
+    data$rescaled_free_left = rescale(data$left_free, to = c(360, 180), from = range(.9, 5.6))
+    data$rescaled_free2_right = rescale(data$right_free2, to = c(0, 180), from = range(.9, 5.6))
+    data$rescaled_free2_left = rescale(data$left_free2, to = c(360, 180), from = range(.9, 5.6))
+    data$rescaled_restrict_right = rescale(data$right_restrict, to = c(0, 180), from = range(.9, 5.6))
+    data$rescaled_restrict_left = rescale(data$left_restrict, to = c(360, 180), from = range(.9, 5.6))
+    data$rescaled_restrict2_right = rescale(data$right_restrict2, to = c(0, 180), from = range(.9, 5.6))
+    data$rescaled_restrict2_left = rescale(data$left_restrict2, to = c(360, 180), from = range(.9, 5.6))
+    
+    # merge phase directions and task switch markers for each player to one column
+    data$free_phase <- coalesce(data$rescaled_free_left, data$rescaled_free_right, data$transition_free)
+    data$free2_phase <- coalesce(data$rescaled_free2_left, data$rescaled_free2_right, data$transition_free2)
+    data$restrict_phase <- coalesce(data$rescaled_restrict_left, data$rescaled_restrict_right, data$transition_restrict)
+    data$restrict2_phase <- coalesce(data$rescaled_restrict2_left, data$rescaled_restrict2_right, data$transition_restrict2)
+    
+    # finish processing phase information
+    data <- data %>% 
+      
+      # fill in NAs with the previous phase (i.e., where they are currently stopped to work)
+      fill(free_phase) %>% 
+      fill(free2_phase) %>% 
+      fill(restrict_phase) %>%
+      fill(restrict2_phase) %>%
+      
+      # drop NAs so that we only have data from when they've all started moving
+      drop_na(free_phase) %>%
+      drop_na(free2_phase) %>%
+      drop_na(restrict_phase) %>%
+      drop_na(restrict2_phase) %>%
+      
+      # replace task switch holders with NAs for relative phase calculation
+      mutate(free_phase = ifelse(free_phase == -99, NA, free_phase),
+             free2_phase = ifelse(free2_phase == -99, NA, free2_phase),
+             restrict_phase = ifelse(restrict_phase == -99, NA, restrict_phase),
+             restrict2_phase = ifelse(restrict2_phase == -99, NA, restrict2_phase)) %>%
+      
+      #### 6. Calculate cluster phase and relative phases for each player ####
+       
+      # transform time series to radians
+      mutate(free_phase_rad = deg2rad(free_phase),
+             free2_phase_rad = deg2rad(free2_phase),
+             restrict_phase_rad = deg2rad(restrict_phase),
+             restrict2_phase_rad = deg2rad(restrict2_phase)) %>%
+      
+      # calculate cluster phase (complex form)
+      mutate(cluster_phase_complex = 
+              (exp(sqrt(as.complex(-1))*free_phase_rad) + 
+              exp(sqrt(as.complex(-1))*free2_phase_rad) + 
+              exp(sqrt(as.complex(-1))*restrict_phase_rad) + 
+              exp(sqrt(as.complex(-1))*restrict2_phase_rad))/4) %>%
+      
+      # calculate cluster phase (radian form, [-pi,pi])
+      mutate(cluster_phase_rad = atan2(Im(cluster_phase_complex), Re(cluster_phase_complex))) %>%
+      
+      # calculate sine and cosine
+      mutate(sin = sin(cluster_phase_rad)) %>%
+      mutate(cos = cos(cluster_phase_rad)) %>%
+      
+      # mean scale sine and cosine
+      mutate(sin = sin/mean(sin, na.rm = TRUE)) %>%
+      mutate(cos = cos/mean(cos, na.rm = TRUE)) %>%
+      
+      # fill NAs with high numbers so that we don't get recurrence
+      mutate(sin = replace_na(sin, 99999)) %>%
+      mutate(cos = replace_na(cos, -99999)) %>%
+      
+      # calculate relative phases for each player-team combo
+      mutate(rel_phase_free = free_phase_rad - cluster_phase_rad) %>%
+      mutate(rel_phase_free2 = free2_phase_rad - cluster_phase_rad) %>%
+      mutate(rel_phase_restrict = restrict_phase_rad - cluster_phase_rad) %>%
+      mutate(rel_phase_restrict2 = restrict2_phase_rad - cluster_phase_rad) %>%
+      
+      # add dyad-round marker
+      mutate(dyad.round = paste(dyad, ".", round_number)) %>%
+      ungroup()
+    
+    #### 7. Calculate mean relative phase and degree of synchrony for each player ####
+    
+    # initialize variables
+    mean_rel_phase_complex_free = 0
+    mean_rel_phase_complex_free2 = 0
+    mean_rel_phase_complex_restrict = 0
+    mean_rel_phase_complex_restrict2 = 0
+    
+    # do summation
+    for(i in 1:nrow(data)) {
+      # complex form
+      if(!is.na(data$free_phase_rad[i])){mean_rel_phase_complex_free = mean_rel_phase_complex_free+exp(sqrt(as.complex(-1))*data$free_phase_rad[i])}
+      if(!is.na(data$free2_phase_rad[i])){mean_rel_phase_complex_free2 = mean_rel_phase_complex_free2+exp(sqrt(as.complex(-1))*data$free2_phase_rad[i])}
+      if(!is.na(data$restrict_phase_rad[i])){mean_rel_phase_complex_restrict = mean_rel_phase_complex_restrict+exp(sqrt(as.complex(-1))*data$restrict_phase_rad[i])}
+      if(!is.na(data$restrict2_phase_rad[i])){mean_rel_phase_complex_restrict2 = mean_rel_phase_complex_restrict2+exp(sqrt(as.complex(-1))*data$restrict2_phase_rad[i])}
     }
-
-    # restrict: if moving right and between .9 and 5.6, mark as right restrict movement
-    if((data$rescale_restrict_x[i] - data$rescale_restrict_x[i+1] < 0) & data$rescale_restrict_x[i] <= 5.6 & data$rescale_restrict_x[i+1] <= 5.6 & data$rescale_restrict_x[i] >= .9 & data$rescale_restrict_x[i+1] >= .9) {
-      data$right_restrict[i] = data$rescale_restrict_x[i]
-      # if moving left and between .9 and 5.6, mark as left restrict movement
-    } else if((data$rescale_restrict_x[i] - data$rescale_restrict_x[i+1] > 0) & data$rescale_restrict_x[i] <= 5.6 & data$rescale_restrict_x[i+1] <= 5.6 & data$rescale_restrict_x[i] >= .9 & data$rescale_restrict_x[i+1] >= .9) {
-      data$left_restrict[i] = data$rescale_restrict_x[i]
-      # if moving left between -.9 and .9, mark as being at -99
-    } else if((data$rescale_restrict_x[i] - data$rescale_restrict_x[i+1] > 0) & (data$rescale_restrict_x[i] > -.9 & data$rescale_restrict_x[i] < .9) & (data$rescale_restrict_x[i+1] > -.9 & data$rescale_restrict_x[i+1] < .9)) {
-      data$transition_restrict[i] = -99
-      # if moving right between -.9 and .9, mark as being at 180
-    } else if((data$rescale_restrict_x[i] - data$rescale_restrict_x[i+1] < 0) & (data$rescale_restrict_x[i] > -.9 & data$rescale_restrict_x[i] < .9) & (data$rescale_restrict_x[i+1] > -.9 & data$rescale_restrict_x[i+1] < .9)) {
-      data$transition_restrict[i] = -99
-    } else {
-      data$right_restrict[i] = NA
-      data$left_restrict[i] = NA
+    
+    # take average of complex relative phase
+    data$mean_rel_phase_complex_free = mean_rel_phase_complex_free/nrow(data)
+    data$mean_rel_phase_complex_free2 = mean_rel_phase_complex_free2/nrow(data)
+    data$mean_rel_phase_complex_restrict = mean_rel_phase_complex_restrict/nrow(data)
+    data$mean_rel_phase_complex_restrict2 = mean_rel_phase_complex_restrict2/nrow(data)
+    
+    # radian form
+    data$mean_rel_phase_rad_free = atan2(Im(data$mean_rel_phase_complex_free), Re(data$mean_rel_phase_complex_free))
+    data$mean_rel_phase_rad_free2 = atan2(Im(data$mean_rel_phase_complex_free2), Re(data$mean_rel_phase_complex_free2))
+    data$mean_rel_phase_rad_restrict = atan2(Im(data$mean_rel_phase_complex_restrict), Re(data$mean_rel_phase_complex_restrict))
+    data$mean_rel_phase_rad_restrict2 = atan2(Im(data$mean_rel_phase_complex_restrict2), Re(data$mean_rel_phase_complex_restrict2))
+    
+    # calculate degree of synchrony
+    data$deg_sync_free = abs(data$mean_rel_phase_complex_free)
+    data$deg_sync_free2 = abs(data$mean_rel_phase_complex_free2)
+    data$deg_sync_restrict = abs(data$mean_rel_phase_complex_restrict)
+    data$deg_sync_restrict2 = abs(data$mean_rel_phase_complex_restrict2)
+    
+    #### 8. Calculate whole-team continuous synchronization ####
+    data <-  data %>%
+      
+      # whole-team sync
+      mutate(continuous_team_sync =
+               case_when(!is.na(free_phase_rad) & !is.na(free2_phase_rad) & !is.na(restrict_phase_rad) & !is.na(restrict2_phase_rad)
+                         ~ abs((exp(sqrt(as.complex(-1))*(free_phase_rad - mean_rel_phase_rad_free)) + 
+                                exp(sqrt(as.complex(-1))*(free2_phase_rad - mean_rel_phase_rad_free2)) + 
+                                exp(sqrt(as.complex(-1))*(restrict_phase_rad - mean_rel_phase_rad_restrict)) + 
+                                exp(sqrt(as.complex(-1))*(restrict2_phase_rad - mean_rel_phase_rad_restrict2)))/4)))
+    
+    #### 9. Calculate mean degree of group synchronization ####
+    
+    # initialize variable
+    mean_team_sync = 0
+    
+    # successively add the sync values at each time point
+    for(k in 1:nrow(data)){
+      if(!is.na(data$continuous_team_sync[k])) { mean_team_sync = mean_team_sync + data$continuous_team_sync[k] }
     }
-
-    # restrict2: if moving right and between .9 and 5.6, mark as right restrict movement
-    if((data$rescale_restrict2_x[i] - data$rescale_restrict2_x[i+1] < 0) & data$rescale_restrict2_x[i] <= 5.6 & data$rescale_restrict2_x[i+1] <= 5.6 & data$rescale_restrict2_x[i] >= .9 & data$rescale_restrict2_x[i+1] >= .9) {
-      data$right_restrict2[i] = data$rescale_restrict2_x[i]
-      # if moving left and between .9 and 5.6, mark as left restrict movement
-    } else if((data$rescale_restrict2_x[i] - data$rescale_restrict2_x[i+1] > 0) & data$rescale_restrict2_x[i] <= 5.6 & data$rescale_restrict2_x[i+1] <= 5.6 & data$rescale_restrict2_x[i] >= .9 & data$rescale_restrict2_x[i+1] >= .9) {
-      data$left_restrict2[i] = data$rescale_restrict2_x[i]
-      # if moving left between -.9 and .9, mark as being at -99
-    } else if((data$rescale_restrict2_x[i] - data$rescale_restrict2_x[i+1] > 0) & (data$rescale_restrict2_x[i] > -.9 & data$rescale_restrict2_x[i] < .9) & (data$rescale_restrict2_x[i+1] > -.9 & data$rescale_restrict2_x[i+1] < .9)) {
-      data$transition_restrict2[i] = -99
-      # if moving right between -.9 and .9, mark as being at 180
-    } else if((data$rescale_restrict2_x[i] - data$rescale_restrict2_x[i+1] < 0) & (data$rescale_restrict2_x[i] > -.9 & data$rescale_restrict2_x[i] < .9) & (data$rescale_restrict2_x[i+1] > -.9 & data$rescale_restrict2_x[i+1] < .9)) {
-      data$transition_restrict2[i] = -99
-    } else {
-      data$right_restrict2[i] = NA
-      data$left_restrict2[i] = NA
-    }
+    
+    # take the mean
+    data$mean_team_sync = mean_team_sync/nrow(data)
+    
+    #### 10. Bind everything to dataframe ####
+    
+    # bind everything to data frame
+    directions = rbind.data.frame(directions,
+                                  data)
+  
 
   }
-  
-  # rescale the data to be in degrees
-  data$rescaled_free_right = rescale(data$right_free, to = c(0, 180), from = range(.9, 5.6))
-  data$rescaled_free_left = rescale(data$left_free, to = c(360, 180), from = range(.9, 5.6))
-  data$rescaled_free2_right = rescale(data$right_free2, to = c(0, 180), from = range(.9, 5.6))
-  data$rescaled_free2_left = rescale(data$left_free2, to = c(360, 180), from = range(.9, 5.6))
-  data$rescaled_restrict_right = rescale(data$right_restrict, to = c(0, 180), from = range(.9, 5.6))
-  data$rescaled_restrict_left = rescale(data$left_restrict, to = c(360, 180), from = range(.9, 5.6))
-  data$rescaled_restrict2_right = rescale(data$right_restrict2, to = c(0, 180), from = range(.9, 5.6))
-  data$rescaled_restrict2_left = rescale(data$left_restrict2, to = c(360, 180), from = range(.9, 5.6))
-  
-  # merge phase directions and task switch markers for each player to one column
-  data$free_phase <- coalesce(data$rescaled_free_left, data$rescaled_free_right, data$transition_free)
-  data$free2_phase <- coalesce(data$rescaled_free2_left, data$rescaled_free2_right, data$transition_free2)
-  data$restrict_phase <- coalesce(data$rescaled_restrict_left, data$rescaled_restrict_right, data$transition_restrict)
-  data$restrict2_phase <- coalesce(data$rescaled_restrict2_left, data$rescaled_restrict2_right, data$transition_restrict2)
-  
-  # finish processing phase information
-  data <- data %>% 
-    
-    # fill in NAs with the previous phase (i.e., where they are currently stopped to work)
-    fill(free_phase) %>% 
-    fill(free2_phase) %>% 
-    fill(restrict_phase) %>%
-    fill(restrict2_phase) %>%
-    
-    # drop NAs so that we only have data from when they've all started moving
-    drop_na(free_phase) %>%
-    drop_na(free2_phase) %>%
-    drop_na(restrict_phase) %>%
-    drop_na(restrict2_phase) %>%
-    
-    # replace task switch holders with NAs for relative phase calculation
-    mutate(free_phase = ifelse(free_phase == -99, NA, free_phase),
-           free2_phase = ifelse(free2_phase == -99, NA, free2_phase),
-           restrict_phase = ifelse(restrict_phase == -99, NA, restrict_phase),
-           restrict2_phase = ifelse(restrict2_phase == -99, NA, restrict2_phase)) %>%
-    
-    #### 6. Calculate cluster phase and relative phases for each player ####
-     
-    # transform time series to radians
-    mutate(free_phase_rad = deg2rad(free_phase),
-           free2_phase_rad = deg2rad(free2_phase),
-           restrict_phase_rad = deg2rad(restrict_phase),
-           restrict2_phase_rad = deg2rad(restrict2_phase)) %>%
-    
-    # calculate cluster phase (complex form)
-    mutate(cluster_phase_complex = 
-            (exp(sqrt(as.complex(-1))*free_phase_rad) + 
-            exp(sqrt(as.complex(-1))*free2_phase_rad) + 
-            exp(sqrt(as.complex(-1))*restrict_phase_rad) + 
-            exp(sqrt(as.complex(-1))*restrict2_phase_rad))/4) %>%
-    
-    # calculate cluster phase (radian form, [-pi,pi])
-    mutate(cluster_phase_rad = atan2(Im(cluster_phase_complex), Re(cluster_phase_complex))) %>%
-    
-    # calculate sine and cosine
-    mutate(sin = sin(cluster_phase_rad)) %>%
-    mutate(cos = cos(cluster_phase_rad)) %>%
-    
-    # mean scale sine and cosine
-    mutate(sin = sin/mean(sin, na.rm = TRUE)) %>%
-    mutate(cos = cos/mean(cos, na.rm = TRUE)) %>%
-    
-    # fill NAs with high numbers so that we don't get recurrence
-    mutate(sin = replace_na(sin, 99999)) %>%
-    mutate(cos = replace_na(cos, -99999)) %>%
-    
-    # calculate relative phases for each player-team combo
-    mutate(rel_phase_free = free_phase_rad - cluster_phase_rad) %>%
-    mutate(rel_phase_free2 = free2_phase_rad - cluster_phase_rad) %>%
-    mutate(rel_phase_restrict = restrict_phase_rad - cluster_phase_rad) %>%
-    mutate(rel_phase_restrict2 = restrict2_phase_rad - cluster_phase_rad) %>%
-    
-    # add dyad-round marker
-    mutate(dyad.round = paste(dyad, ".", round_number)) %>%
-    ungroup()
-  
-  #### 7. Calculate mean relative phase and degree of synchrony for each player ####
-  
-  # initialize variables
-  mean_rel_phase_complex_free = 0
-  mean_rel_phase_complex_free2 = 0
-  mean_rel_phase_complex_restrict = 0
-  mean_rel_phase_complex_restrict2 = 0
-  
-  # do summation
-  for(i in 1:nrow(data)) {
-    # complex form
-    if(!is.na(data$free_phase_rad[i])){mean_rel_phase_complex_free = mean_rel_phase_complex_free+exp(sqrt(as.complex(-1))*data$free_phase_rad[i])}
-    if(!is.na(data$free2_phase_rad[i])){mean_rel_phase_complex_free2 = mean_rel_phase_complex_free2+exp(sqrt(as.complex(-1))*data$free2_phase_rad[i])}
-    if(!is.na(data$restrict_phase_rad[i])){mean_rel_phase_complex_restrict = mean_rel_phase_complex_restrict+exp(sqrt(as.complex(-1))*data$restrict_phase_rad[i])}
-    if(!is.na(data$restrict2_phase_rad[i])){mean_rel_phase_complex_restrict2 = mean_rel_phase_complex_restrict2+exp(sqrt(as.complex(-1))*data$restrict2_phase_rad[i])}
-  }
-  
-  # take average of complex relative phase
-  data$mean_rel_phase_complex_free = mean_rel_phase_complex_free/nrow(data)
-  data$mean_rel_phase_complex_free2 = mean_rel_phase_complex_free2/nrow(data)
-  data$mean_rel_phase_complex_restrict = mean_rel_phase_complex_restrict/nrow(data)
-  data$mean_rel_phase_complex_restrict2 = mean_rel_phase_complex_restrict2/nrow(data)
-  
-  # radian form
-  data$mean_rel_phase_rad_free = atan2(Im(data$mean_rel_phase_complex_free), Re(data$mean_rel_phase_complex_free))
-  data$mean_rel_phase_rad_free2 = atan2(Im(data$mean_rel_phase_complex_free2), Re(data$mean_rel_phase_complex_free2))
-  data$mean_rel_phase_rad_restrict = atan2(Im(data$mean_rel_phase_complex_restrict), Re(data$mean_rel_phase_complex_restrict))
-  data$mean_rel_phase_rad_restrict2 = atan2(Im(data$mean_rel_phase_complex_restrict2), Re(data$mean_rel_phase_complex_restrict2))
-  
-  # calculate degree of synchrony
-  data$deg_sync_free = abs(data$mean_rel_phase_complex_free)
-  data$deg_sync_free2 = abs(data$mean_rel_phase_complex_free2)
-  data$deg_sync_restrict = abs(data$mean_rel_phase_complex_restrict)
-  data$deg_sync_restrict2 = abs(data$mean_rel_phase_complex_restrict2)
-  
-  #### 8. Calculate whole-team continuous synchronization ####
-  data <-  data %>%
-    
-    # whole-team sync
-    mutate(continuous_team_sync =
-             case_when(!is.na(free_phase_rad) & !is.na(free2_phase_rad) & !is.na(restrict_phase_rad) & !is.na(restrict2_phase_rad)
-                       ~ abs((exp(sqrt(as.complex(-1))*(free_phase_rad - mean_rel_phase_rad_free)) + 
-                              exp(sqrt(as.complex(-1))*(free2_phase_rad - mean_rel_phase_rad_free2)) + 
-                              exp(sqrt(as.complex(-1))*(restrict_phase_rad - mean_rel_phase_rad_restrict)) + 
-                              exp(sqrt(as.complex(-1))*(restrict2_phase_rad - mean_rel_phase_rad_restrict2)))/4)))
-  
-  #### 9. Calculate mean degree of group synchronization ####
-  
-  # initialize variable
-  mean_team_sync = 0
-  
-  # successively add the sync values at each time point
-  for(k in 1:nrow(data)){
-    if(!is.na(data$continuous_team_sync[k])) { mean_team_sync = mean_team_sync + data$continuous_team_sync[k] }
-  }
-  
-  # take the mean
-  data$mean_team_sync = mean_team_sync/nrow(data)
-  
-  #### 10. Bind everything to dataframe ####
-  
-  # bind everything to data frame
-  directions = rbind.data.frame(directions,
-                                data)
   
 }
 
