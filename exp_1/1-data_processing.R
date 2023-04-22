@@ -395,19 +395,12 @@ for (round in names(rounds)){
     # create frequency table for non-binned data
     next_table <- as.data.frame(table(next_data$rel_phase_rounded))
     
-    # # make into binned groups
-    # min_val = -180
-    # max_val = 180
-    # bin_size = 5
-    # break_vals = seq(min_val, max_val, bin_size)  
-    # next_data$grouped <- cut(next_data$rel_phase_rounded, breaks = break_vals)
-    # # create data frame and visualize the distribution
-    # next_table <- as.data.frame(table(next_data$grouped))
-    # next_table$bin <- c(1:nrow(next_table))
-    # ggplot(next_table,                                  
-    #        aes(x = bin,
-    #            y = Freq)) + 
-    #   geom_bar(stat = "identity")
+    # fill in relative phases that didn't have anything
+    raw_relphase = as.data.frame(-180:180)
+    raw_relphase = raw_relphase %>% rename("Var1" = "-180:180") %>% mutate(Var1 = as.factor(Var1))
+    next_table = next_table %>% 
+      right_join(raw_relphase,by=c("Var1")) %>%
+      mutate(Freq = replace_na(Freq, 0))
     
     # add dyad info and save to data frame
     next_table$dyad = unique(next_data$dyad)
