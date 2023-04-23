@@ -3,7 +3,7 @@
 # Run MdRQA with identified radii for experiment 3.
 # 
 # Code by: @mchiovaro
-# Last updated: 2023_04_14
+# Last updated: 2023_04_23
 
 #### 1. set up ####
 rm(list=ls())
@@ -20,17 +20,11 @@ source(file = "mdrqa.R")
 split_rounds = split(data,
                      list(data$dyad.round))
 
-# # remove the dyad.rounds that had too high rr
-# split_rounds[c(38, 63, 138)] = NULL 
-
 # empty frame for results
 mdrqa_results = data.frame()
 
 # run through all the rounds
 for (next_round in split_rounds){
-  
-  # only if it is within the dyad.rounds that are being kept 
-  if(unique(next_round$dyad.round) != "49 . 4" & unique(next_round$dyad.round) != "73 . 4" & unique(next_round$dyad.round) != "54 . 4" & unique(next_round$dyad.round) !=  "58 . 5" & unique(next_round$dyad.round) != "87 . 5"){
      
     # isolate parameters for next dyad.round
     chosen.delay = 1
@@ -53,8 +47,6 @@ for (next_round in split_rounds){
     names(next_data_line) = c("dyad.round",names(rec_analysis[1:15]))
     mdrqa_results = rbind.data.frame(mdrqa_results,next_data_line)   
     
-  }
-  
 }
 
 # grab information about experiment condition
@@ -64,6 +56,6 @@ additional_dyad_info = data %>% ungroup() %>%
 
 # merge recurrence analyses and condition information
 recurrence_df = plyr::join(mdrqa_results, additional_dyad_info,
-                           by=c('dyad.round'))
+                           by=c('dyad.round')) %>% drop_na(REC)
 # save to file
 write.table(recurrence_df,'./data/mdrqa_and_conditions.csv',sep=',')
