@@ -30,6 +30,17 @@ real_data = read.table('./data/mdrqa_and_conditions.csv',
 relphase_freq_data = read.table('./data/freq_tables-exp_1.csv', 
                                 sep=',', header = TRUE)
 
+# specify global plotting variables for TD: magma pallete
+TD1 = "#fcfdbf"
+TD2 = "#fc8961" 
+TD3 = "#b73779"
+TDcolors = c(TD1, TD2, TD3)
+# specify global plotting variables for IE: viridis pallete
+IE1 = "#fde725"
+IE2 = "#21918c"
+IE3 = "#3b528b"
+IEcolors = c(IE1, IE2, IE3)
+
 ```
 
 ## Data preparation
@@ -216,17 +227,6 @@ pander(posthoc.ie.td.df, caption = "p < .10, * p < .05, ** p < .001")
 
 ```{r H2-plots, each=FALSE, echo=FALSE}
 
-# specify global plotting variables for TD: magma pallete
-TD1 = "#fcfdbf"
-TD2 = "#fc8961" 
-TD3 = "#b73779"
-TDcolors = c(TD1, TD2, TD3)
-# specify global plotting variables for IE: viridis pallete
-IE1 = "#fde725"
-IE2 = "#21918c"
-IE3 = "#3b528b"
-IEcolors = c(IE1, IE2, IE3)
-
 # interaction between TD and IE
 ggplot(real_data) +
   aes(x = TD, y = Time, fill = TD) +
@@ -345,13 +345,37 @@ relphase_vals[, paste("ot", 1:2, sep="")] = t[relphase_vals$raw_relphase + phase
 # join it to the original data table
 relphase_freq_data = left_join(relphase_freq_data,relphase_vals, by = c("Var1" = "raw_relphase"))
 
+# explore the distribution of frequency to select appropriate normalization (contains 0 values)
+freq_transforms <- relphase_freq_data %>% 
+  rename(freq_raw = Freq) %>%
+  mutate(freq_plus_1 = freq_raw + 1) %>%
+  mutate(freq_scaled = scale(freq_raw))
+
+# visualize hist and Q-Q for raw values
+hist(freq_transforms$freq_raw, breaks = 1400, xlim = c(0,100))
+qqnorm(freq_transforms$freq_raw, pch = 1, frame = FALSE)
+qqline(freq_transforms$freq_raw, col = "steelblue", lwd = 2)
+# visualize hist and Q-Q for log transformed raw time series with zeros (for comparison with other methods)
+hist(log(freq_transforms$freq_raw), breaks = 30, xlim = c(0,7))
+qqnorm(log(freq_transforms$freq_raw), pch = 1, frame = FALSE, ylim = c(0, 10))
+qqline(log(freq_transforms$freq_raw), col = "steelblue", lwd = 2)
+# visualize hist and Q-Q for log(x+1)
+hist(log(freq_transforms$freq_plus_1), breaks = 30, xlim = c(0,7))
+qqnorm(log(freq_transforms$freq_plus_1), pch = 1, frame = FALSE, ylim = c(0, 10))
+qqline(log(freq_transforms$freq_plus_1), col = "steelblue", lwd = 2)
+# visualize hist and Q-Q for scaled values
+hist(freq_transforms$freq_scaled, breaks = 1400, xlim = c(0,2))
+qqnorm(freq_transforms$freq_scaled, pch = 1, frame = FALSE, ylim = c(0, 10))
+qqline(freq_transforms$freq_scaled, col = "steelblue", lwd = 2)
+
 # create factors and rename variables
 relphase_freq_data_raw = relphase_freq_data %>% ungroup() %>%
   mutate(dyad = as.factor(dyad)) %>%
   mutate(td_condition = as.factor(td_condition)) %>%
   mutate(ie_condition = as.factor(ie_condition)) %>%
-  # scale ot1, ot2, and round and log transform frequency
-  mutate(Freq = log(Freq)) %>%
+  # scale ot1, ot2, and round and log(x+1) transform frequency
+  rename(rawFreq = Freq) %>%
+  mutate(logFreq = log(rawFreq+1)) %>%
   mutate(ot1 = scale(ot1)) %>%
   mutate(ot2 = scale(ot2)) %>%
   mutate(round = scale(round)) %>%
@@ -359,79 +383,61 @@ relphase_freq_data_raw = relphase_freq_data %>% ungroup() %>%
   rename(IE = ie_condition) %>% 
   rename(Dyad = dyad) %>% 
   rename(Round = round) %>% 
-  rename(Frequency = Freq) %>% 
-  rename(Relative_Phase = Var1)
+  #rename(Frequency = Freq) %>% 
+  rename(RelativePhase = Var1) %>%
+  mutate(RelativePhase = as.factor(RelativePhase))
 
 ```
-
 
 ```{r H4-model, each=FALSE, echo=FALSE}
 
 # raw model
-relphase.gca.raw = lmer(Frequency ~ 
+relphase.gca.raw = lmer(logFreq ~ 
                           # fixed effects
-                          Round +
-                          TD*IE*ot1*ot2 +
-                          # random effect (ot1 or ot2?)
-                          (1 | Dyad),
+                          #Round +
+                          TD*IE*ot1*ot2*Round +
+                          # random effect
+                          (1 + ot1 | Dyad),
                         data=relphase_freq_data_raw, REML=FALSE)
 pander_lme(relphase.gca.raw,stats.caption = TRUE)
 #tab_model(relphase.gca.raw)
 
 # find residual DF for effect size calculation
 anova(relphase.gca.raw) # gives DenDF
-df.resid.td = 54156
-df.resid.round = 54163
-df.resid.ot1 = 54149
-df.resid.ot2 = 54140
-df.resid.td.ie = 54150
-df.resid.td.ot1 = 54146
-df.resid.ie.ot1 = 54149
-df.resid.td.ot2 = 54140
-df.resid.td.ie.ot1 = 54146
-df.resid.td.ie.ot2 = 54140
-df.resid.ie.ot1.ot2 = 54143
-df.resid.td.ie.ot1.ot2 = 54141
-  
+summary(relphase.gca.raw)
+df.resid = 57323
+
 # check out effect sizes
-effectsizes_H4 <- as.data.frame(t_to_eta2(t = c(-5.252, 7.312, 2.548, 2.582, 
-                                                3.051, -2.761, -3.354, -2.955, 
-                                                -2.445, -2.186, 2.217, 2.334, 
-                                                -2.576, -2.755, -4.09, 3.962, 
-                                                4.645, 3.106, -2.009, 2.786, -2.491),
-                                              df_error = c(df.resid.round, 
-                                                           df.resid.td,
-                                                           df.resid.td,
-                                                           df.resid.ot1, 
-                                                           df.resid.ot2, 
-                                                           df.resid.td.ie, 
-                                                           df.resid.td.ie, 
-                                                           df.resid.td.ie, 
-                                                           df.resid.td.ie, 
-                                                           df.resid.td.ot1,
-                                                           df.resid.ie.ot1, 
-                                                           df.resid.ie.ot1, 
-                                                           df.resid.td.ot2, 
-                                                           df.resid.td.ot2, 
-                                                           df.resid.td.ie.ot1, 
-                                                           df.resid.td.ie.ot1, 
-                                                           df.resid.td.ie.ot2, 
-                                                           df.resid.td.ie.ot2, 
-                                                           df.resid.ie.ot1.ot2, 
-                                                           df.resid.td.ie.ot1.ot2,
-                                                           df.resid.td.ie.ot1.ot2)))
+effectsizes_H4 <- as.data.frame(t_to_eta2(t = c(8.652, -2.716, -4.831, -2.277, -2.903,
+                                                5.115, -2.14, 1.985, -2.264, -1.992,
+                                                -5.307, -3.098, -3.406, 2.353, 3.351,
+                                                2.036, -2.017, -2.346, -2.279, 4.379,
+                                                3.785, 5.732, 3.531, 2.854, 2.925,
+                                                2.585, -4.37, -5.164, -2.659, -2.715,
+                                                -5.035, -2.711, 2.156),
+                                              df_error = c(df.resid,df.resid,df.resid,
+                                                           df.resid,df.resid,df.resid,
+                                                           df.resid,df.resid,df.resid,
+                                                           df.resid,df.resid,df.resid,
+                                                           df.resid,df.resid,df.resid,
+                                                           df.resid,df.resid,df.resid,
+                                                           df.resid,df.resid,df.resid,
+                                                           df.resid,df.resid,df.resid,
+                                                           df.resid,df.resid,df.resid,
+                                                           df.resid,df.resid,df.resid,
+                                                           df.resid,df.resid,df.resid)))
 
 # build the effect size table
 colnames(effectsizes_H4) <- c("Partial Eta2", "CI", "CI Low" , "CI High" )
 effectsizes_H4 <- effectsizes_H4 %>% mutate_if(is.numeric, round, digits=4) %>% 
   select(-CI) %>%
-  mutate(Predictor = c("Round", "TD [2]", "TD [3]", "ot1", "ot2", "TD [2] x IE [2]", 
-                       "TD [3] x IE [2]", "TD [2] x IE [3]", "TD [3] x IE [3]", 
-                       "TD [2] x ot1", "IE [2] x ot1", "IE [3] x ot1", "TD [2] x ot2",
-                       "TD [3] x ot2", "TD [2] x IE [3] x ot1", "TD [3] x IE [3] x ot1",
-                       "TD [2] x IE [2] x ot2", "TD [3] x IE [2] x ot2",
-                       "IE [3] x ot1 x ot2", "TD [2] x IE [3] x ot1 X ot2",
-                       "TD [3] x IE [3] x ot1 x ot2")) %>%
+  mutate(Predictor = c("TD2","TD2:IE2","TD2:IE3","TD3:IE3","TD2:ot1", 
+                       "TD3:ot1", "TD3:ot2", "IE2:ot2", "ot1:ot2", "TD2:Round",
+                       "TD3:Round", "TD3:IE2:ot1", "TD2:IE3:ot1", "TD3:IE3:ot1", "TD2:IE2:ot2", 
+                       "TD3:IE2:ot2", "TD3:ot1:ot2", "IE2:ot1:ot2", "IE3:ot1:ot2", "TD3:IE2:Round", 
+                       "TD3:IE3:Round", "TD3:ot1:Round", "IE2:ot1:Round", "IE2:ot2:Round", "IE3:ot2:Round",
+                       "TD2:IE3:ot1:ot2", "TD2:IE2:ot1:Round", "TD3:IE2:ot1:Round", "TD2:IE2:ot2:Round",
+                       "TD3:IE2:ot2:Round", "TD3:IE3:ot2:Round", "TD3:ot1:ot2:Round", "TD3:IE2:ot1:ot2:Round")) %>%
   relocate(Predictor)
 
 # set to not split table and round to two decimal places
@@ -448,19 +454,19 @@ pander(effectsizes_H4, caption = "")
 ```{r H4-posthoc, echo=FALSE}
 
 # visualize the regression lines
-emmip(relphase.gca.raw, IE ~ ot1, cov.reduce = range) +
-  scale_color_manual(values=IEcolors)
-ggsave('./results/figures/exp_1-H4-regression_IE_ot1.png') 
+# emmip(relphase.gca.raw, IE ~ ot2, cov.reduce = range) +
+#    scale_color_manual(values=IEcolors)
+# ggsave('./results/figures/exp_1-H4-regression_IE_ot1.png') 
 
-# post-hoc of IE*ot1
-posthoc.ie.ot1 <- emtrends(relphase.gca.raw, "IE", var = "ot1")
-posthoc.ie.ot1.df <- as.data.frame(pairs(posthoc.ie.ot1))
+# post-hoc of TD*ot2
+posthoc.td.ie.ot2 <- emtrends(relphase.gca.raw, ~TD*IE, var = "ot2")
+posthoc.td.ie.ot2.df <- as.data.frame(pairs(posthoc.td.ie.ot2))
 # add significance stars
-stars <- as.data.frame(stars.pval(posthoc.ie.ot1.df[,6]))
-posthoc.ie.ot1.df <- cbind(posthoc.ie.ot1.df, stars)
+stars <- as.data.frame(stars.pval(posthoc.td.ie.ot2.df[,6]))
+posthoc.td.ie.ot2.df <- cbind(posthoc.td.ie.ot2.df, stars)
 # rename columns
-colnames(posthoc.ie.ot1.df) <- c("Pairwise Comparison", "Estimate", "Std. Error", "DF", "t-value", "Adjusted p-value", " ")
-posthoc.ie.ot1.df <- posthoc.ie.ot1.df %>% mutate_if(is.numeric, round, digits=3) %>%
+colnames(posthoc.td.ie.ot2.df) <- c("Pairwise Comparison", "Estimate", "Std. Error", "DF", "t-value", "Adjusted p-value", " ")
+posthoc.td.ie.ot2.df <- posthoc.td.ie.ot2.df %>% mutate_if(is.numeric, round, digits=3) %>%
   select(-DF)
 
 # set to not split table and round to two decimal places
@@ -471,109 +477,135 @@ panderOptions('keep.trailing.zeros', TRUE)
 panderOptions("table.style", "rmarkdown")
 
 # build table
-pander(posthoc.ie.ot1.df, caption = "p < .10, * p < .05, ** p < .001")
+pander(posthoc.td.ie.ot2.df, caption = "p < .10, * p < .05, ** p < .001")
 
 ```
 
 ```{r H4-hist-plots, each=FALSE, echo=FALSE}
 
+# read in non-accumulated relative phase data
+data <- read.csv("./data/data_prepped-exp_1.csv")
+data <- data %>%
+  tidyr::drop_na(rel_phase) %>%
+  mutate(rel_phase_rescale = case_when(rel_phase > 180 ~ rel_phase-360,
+                                       rel_phase < -180 ~ rel_phase+360,
+                                       rel_phase <= 180 & rel_phase >= -180 ~ rel_phase)) %>%
+  # round to the nearest degree
+  mutate(rel_phase_rounded = round(rel_phase_rescale, digits = 0)) %>%
+
+  # rename
+  rename(TD = td_condition) %>%
+  rename(IE = ie_condition) %>%
+  rename(Dyad = dyad) %>%
+  rename(Round = round_number) %>%
+  mutate(TD = as.factor(TD)) %>%
+  mutate(IE = as.factor(IE)) %>%
+  mutate(Dyad = as.factor(Dyad)) %>%
+  mutate(Round = as.factor(Round)) 
+  #mutate(rel_phase_rounded = as.factor(rel_phase_rounded))
+
 # plot by dyad (IE 1)
-ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = IE)) + 
-  geom_histogram(binwidth = 20, color = "black", show.legend = FALSE) +
+ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
+  geom_histogram(binwidth = 8, color = "black", show.legend = FALSE) +
   facet_wrap(~as.numeric(Dyad)) +
   scale_fill_manual(values = IEcolors, name = "IE") +
   xlab('Relative Phase') +
   ylab('Frequency') +
   ggtitle("Frequency of Relative Phase by Dyad (IE 1)") +
-  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, page = 1, labeller = labeller('IE:Dyad' = c('1:1'="Dyad 1", 
-                                                                                                          '1:3'="Dyad 3", 
-                                                                                                          '1:5'="Dyad 5", 
-                                                                                                          '1:8'="Dyad 8", 
-                                                                                                          '1:10'="Dyad 10", 
-                                                                                                          '1:14'="Dyad 14", 
-                                                                                                          '1:15'="Dyad 15", 
-                                                                                                          '1:18'="Dyad 18", 
-                                                                                                          '1:21'="Dyad 21"))) +
-  theme_grey(base_size = 12) +
+  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, 
+                               page = 1, labeller = labeller('IE:Dyad' = c('1:1'="Dyad 1", 
+                                                                            '1:3'="Dyad 3", 
+                                                                            '1:5'="Dyad 5", 
+                                                                            '1:8'="Dyad 8", 
+                                                                            '1:10'="Dyad 10", 
+                                                                            '1:14'="Dyad 14", 
+                                                                            '1:15'="Dyad 15", 
+                                                                            '1:18'="Dyad 18", 
+                                                                            '1:21'="Dyad 21"))) +
+  theme_grey(base_size = 15) +
   scale_x_continuous(breaks=c(-180,0,180))
-ggsave('./results/figures/exp_1-H4-dyad_hist_IE1.png')
+ggsave('./results/figures/exp_1-H4-dyad_hist_IE1.png', height = 5, width = 7)
 
 # plot by dyad (IE 2)
-ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = IE)) + 
-  geom_histogram(binwidth = 20, color = "black", show.legend = FALSE) +
+ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
+  geom_histogram(binwidth = 8, color = "black", show.legend = FALSE) +
   facet_wrap(~as.numeric(Dyad)) +
   scale_fill_manual(values = IEcolors, name = "IE") +
   xlab('Relative Phase') +
   ylab('Frequency') +
   ggtitle("Frequency of Relative Phase by Dyad (IE 2)") +
-  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, page = 2, labeller = labeller('IE:Dyad' = c('2:9'="Dyad 9", 
-                                                                                                          '2:12'="Dyad 12", 
-                                                                                                          '2:16'="Dyad 16", 
-                                                                                                          '2:17'="Dyad 17", 
-                                                                                                          '2:19'="Dyad 19", 
-                                                                                                          '2:22'="Dyad 22", 
-                                                                                                          '2:24'="Dyad 24", 
-                                                                                                          '2:27'="Dyad 27", 
-                                                                                                          '2:31'="Dyad 31"))) +
-  theme_grey(base_size = 12) +
+  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, 
+                               page = 2, labeller = labeller('IE:Dyad' = c('2:9'="Dyad 9", 
+                                                                            '2:12'="Dyad 12", 
+                                                                            '2:16'="Dyad 16", 
+                                                                            '2:17'="Dyad 17", 
+                                                                            '2:19'="Dyad 19", 
+                                                                            '2:22'="Dyad 22", 
+                                                                            '2:24'="Dyad 24", 
+                                                                            '2:27'="Dyad 27", 
+                                                                            '2:31'="Dyad 31"))) +
+  theme_grey(base_size = 15) +
   scale_x_continuous(breaks=c(-180,0,180))
-ggsave('./results/figures/exp_1-H4-dyad_hist_IE2.png')
+ggsave('./results/figures/exp_1-H4-dyad_hist_IE2.png', height = 5, width = 7)
 
 # plot by dyad (IE 3)
-ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = IE)) + 
-  geom_histogram(binwidth = 20, color = "black", show.legend = FALSE) +
+ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
+  geom_histogram(binwidth = 8, color = "black", show.legend = FALSE) +
   facet_wrap(~as.numeric(Dyad)) +
   scale_fill_manual(values = IEcolors, name = "IE") +
   xlab('Relative Phase') +
   ylab('Frequency') +
   ggtitle("Frequency of Relative Phase by Dyad (IE 3)") +
-  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, page = 3, labeller = labeller('IE:Dyad' = c('3:2'="Dyad 2", 
-                                                                                                          '3:4'="Dyad 4", 
-                                                                                                          '3:6'="Dyad 6", 
-                                                                                                          '3:7'="Dyad 7", 
-                                                                                                          '3:11'="Dyad 11", 
-                                                                                                          '3:13'="Dyad 13", 
-                                                                                                          '3:20'="Dyad 20", 
-                                                                                                          '3:23'="Dyad 23", 
-                                                                                                          '3:26'="Dyad 26"))) +
-  theme_grey(base_size = 12) +
+  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, 
+                               ncol = 3, page = 3, 
+                               labeller = labeller('IE:Dyad' = c('3:2'="Dyad 2", 
+                                                                  '3:4'="Dyad 4", 
+                                                                  '3:6'="Dyad 6", 
+                                                                  '3:7'="Dyad 7", 
+                                                                  '3:11'="Dyad 11", 
+                                                                  '3:13'="Dyad 13", 
+                                                                  '3:20'="Dyad 20", 
+                                                                  '3:23'="Dyad 23", 
+                                                                  '3:26'="Dyad 26"))) +
+  theme_grey(base_size = 15) +
   scale_x_continuous(breaks=c(-180,0,180))
-ggsave('./results/figures/exp_1-H4-dyad_hist_IE3.png')
+ggsave('./results/figures/exp_1-H4-dyad_hist_IE3.png', height = 5, width = 7)
 
 # plot histograms by IE collapsed across dyads
-ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = IE)) + 
-  geom_histogram(binwidth = 10, color = "black", show.legend = FALSE) +
+ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
+  geom_histogram(binwidth = 5, color = "black", show.legend = FALSE) +
   facet_wrap(~as.numeric(IE), labeller = as_labeller(c("1"='IE 1', "2"='IE 2', "3"='IE 3'))) +
   scale_fill_manual(values = IEcolors, name = "IE") +
   xlab('Relative Phase') +
   ylab('Frequency') +
   ggtitle("Frequency of Relative Phase by IE Condition") +
-  theme_grey(base_size = 12) +
+  theme_grey(base_size = 15) +
   scale_x_continuous(breaks=c(-180,0,180))
-ggsave('./results/figures/H4-histogram_IE_collapsed.png')
+ggsave('./results/figures/H4-histogram_IE_collapsed.png', height = 5, width = 7)
 
 # plot histograms by TD collapsed across dyads
-ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = TD)) + 
-  geom_histogram(binwidth = 10, color = "black", show.legend = FALSE) +
+ggplot(data, aes(x = rel_phase_rounded, fill = TD)) + 
+  geom_histogram(binwidth = 5, color = "black", show.legend = FALSE) +
   facet_wrap(~as.numeric(TD), labeller = as_labeller(c("1"='TD 1', "2"='TD 2', "3"='TD 3'))) +
   scale_fill_manual(values = TDcolors, name = "TD") +
   xlab('Relative Phase') +
   ylab('Frequency') +
   ggtitle("Frequency of Relative Phase by TD Condition") +
-  theme_grey(base_size = 12) +
+  theme_grey(base_size = 15) +
   scale_x_continuous(breaks=c(-180,0,180))
-ggsave('./results/figures/H4-histogram_TD_collapsed.png')
+ggsave('./results/figures/H4-histogram_TD_collapsed.png', height = 5, width = 7)
 
 # plot histograms by TD*IE collapsed across dyads
-ggplot(relphase_freq_data_raw, aes(x = Relative_Phase, fill = IE)) + 
-  geom_histogram(binwidth = 10, color = "black", show.legend = FALSE) +
-  facet_grid(TD~IE, labeller = labeller(TD = c('1'="TD 1", '2'="TD 2", '3'="TD 3"), IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
+ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
+  geom_histogram(binwidth = 5, color = "black", show.legend = FALSE) +
+  facet_grid(TD~IE, labeller = labeller(TD = c('1'="TD 1", '2'="TD 2", '3'="TD 3"), 
+                                        IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
   scale_fill_manual(values = IEcolors) +
   xlab('Relative Phase') +
   ylab('Frequency') +
   ggtitle("Frequency of Relative Phase by TD and IE") +
   theme_grey(base_size = 15) +
   scale_x_continuous(breaks=c(-180,0,180))
-ggsave('./results/figures/H4-histogram_TD*IE_collapsed.png')
+ggsave('./results/figures/H4-histogram_TD*IE_collapsed.png', height = 5, width = 7)
 
 ```
