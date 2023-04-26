@@ -4,12 +4,12 @@ output:
   word_document: default
   html_document: default
   pdf_document: default
-date: "2023-04-17"
+date: "2023-04-26"
 ---
 
-NOTE: Change all fixed effects to just have the asterisks
+This Rmd conducts all inferential statistics and builds plots for Experiment 1.
 
-## Set up
+# Set up
 
 ```{r setup, include=FALSE, echo=FALSE}
 
@@ -43,7 +43,7 @@ IEcolors = c(IE1, IE2, IE3)
 
 ```
 
-## Data preparation
+# Data preparation
 
 ```{r data-prep, echo=FALSE}
 
@@ -89,6 +89,8 @@ all_data = all_data %>%
 
 ## Hypothesis 1: More deterministic than chance.
 
+### Model
+
 ```{r H1-model, echo=FALSE}
 
 # construct the raw model
@@ -133,6 +135,8 @@ pander(effectsizes_H1, caption = "")
 
 ```
 
+### Plots
+
 ```{r H1-plots, each=FALSE, echo=FALSE}
 
 # specify global plotting variables for type of data: magma palette
@@ -152,7 +156,9 @@ ggsave("./results/figures/exp_1-H1_plot.png")
 
 ## Hypothesis 2: Bi-directional task switching will result in faster completion times.
 
-For this model, TD 1 is the equal task demand condition and IE 1 is the bidirectional switching condition. Given that these are the intended reference levels, the dummy coding by lme4 will suffice. Otherwise, we could use 'contrasts(real_data$X) = contr.treatment(3, base = 2)' to reassign the reference variable (X). This will need to be done for experiment 2. 
+For this model, TD 1 is the equal task demand condition and IE 1 is the bidirectional switching condition. Given that these are the intended reference levels, the dummy coding by lme4 will suffice.
+
+### Model
 
 ```{r H2-model, each=FALSE, echo=FALSE}
 
@@ -201,10 +207,12 @@ pander(effectsizes_H2, caption = "")
 
 ```
 
+### Post-hoc
+
 ```{r H2-posthoc, echo=FALSE}
 
 # post-hoc of IE*TD2
-posthoc.ie.td <- (emmeans(completion.model.raw, list(pairwise ~ IE*TD), adjust = "tukey"))[2]
+posthoc.ie.td <- (emmeans(completion.model.raw, list(pairwise ~ TD*IE), adjust = "tukey"))[2]
 posthoc.ie.td.df <- as.data.frame(posthoc.ie.td)
 # add significance stars
 stars <- as.data.frame(stars.pval(posthoc.ie.td.df[,6]))
@@ -225,6 +233,8 @@ pander(posthoc.ie.td.df, caption = "p < .10, * p < .05, ** p < .001")
 
 ```
 
+### Plots
+
 ```{r H2-plots, each=FALSE, echo=FALSE}
 
 # interaction between TD and IE
@@ -234,26 +244,31 @@ ggplot(real_data) +
   facet_wrap(~IE, labeller = as_labeller(c("1"='IE 1', "2"='IE 2', "3"='IE 3'))) +
   scale_fill_manual(values = TDcolors) + # magma
   ggtitle("Impact of Task Demand and Individual Effectivities on Time") +
-  theme_grey(base_size = 12)
-ggsave("./results/figures/exp_1-H2-plot_TDxIE.png")
+  theme_grey(base_size = 14) +
+  ylab('Task Completion Time') +
+  xlab('Task Demand')
+ggsave("./results/figures/exp_1-H2-TDxIE.png", height = 5, width = 7)
 
 # interaction between TD and Round
 ggplot(real_data) +
   aes(x = as.factor(Round), y = Time, fill = as.factor(Round)) +
   geom_boxplot(show.legend = FALSE) +
   facet_wrap(~TD, labeller = as_labeller(c("1"='TD 1', "2"='TD 2', "3"='TD 3'))) +
-  scale_fill_viridis(discrete = TRUE, option = "rocket") +
+  #scale_fill_viridis(discrete = TRUE, option = "rocket") +
   ggtitle("Impact of Task Demand and Round on Time") +
-  theme_grey(base_size = 12) +
+  theme_grey(base_size = 14) +
   labs(fill = "Round") +
-  xlab('Round')
-ggsave("./results/figures/exp_1-H2-plot_TDxIExRound.png")
+  xlab('Round')  +
+  ylab('Task Completion Time')
+ggsave("./results/figures/exp_1-H2-TDxRound.png", height = 5, width = 7)
 
 ```
 
 ## Hypothesis 3: Bi-directional task switching leads to more time in relative coordination.
 
 Once again, the reference levels are appropriately coded by the default dummy coding of lme4.
+
+### Model 
 
 ```{r H3-model, each=FALSE, echo=FALSE}
 
@@ -294,6 +309,8 @@ pander(effectsizes_H3, caption = "")
 
 ```
 
+### Post-hoc
+
 ```{r H3-posthoc, echo=FALSE}
 
 # post-hoc test of TD
@@ -318,6 +335,8 @@ pander(posthoc.td.df, caption = "p < .10, * p < .05, ** p < .001")
 
 ```
 
+### Plots
+
 ```{r H3-plots, each=FALSE, echo=FALSE}
 
 # effect of TD
@@ -325,14 +344,17 @@ ggplot(real_data, aes(x=TD, y=Determinism, fill = TD)) +
   geom_boxplot(show.legend = FALSE) +
   scale_fill_manual(values = TDcolors) +
   ggtitle("Impact of Task Demand on Relative Coordination") +
-  theme_grey(base_size = 12)
-ggsave("./results/figures/exp_1-H3-plot_TD.png")
+  theme_grey(base_size = 14) +
+  xlab('Task Demand')
+ggsave("./results/figures/exp_1-H3-TD.png", height = 5, width = 7)
 
 ```
 
 ## Hypothesis 4: In I.E. condition 2, P2 will adapt to (follow) P1
 
 Once again, the reference levels are appropriately coded by the default dummy coding of lme4.
+
+### Prepare data
 
 ```{r prepare-data, each=FALSE, echo=FALSE}
 # create orthogonal polynomials for determining leading-following (first-order) and sychrony (second-order).
@@ -388,6 +410,8 @@ relphase_freq_data_raw = relphase_freq_data %>% ungroup() %>%
   mutate(RelativePhase = as.factor(RelativePhase))
 
 ```
+
+### Model
 
 ```{r H4-model, each=FALSE, echo=FALSE}
 
@@ -451,6 +475,8 @@ pander(effectsizes_H4, caption = "")
 
 ```
 
+### Post-hoc
+
 ```{r H4-posthoc, echo=FALSE}
 
 # visualize the regression lines
@@ -481,6 +507,8 @@ pander(posthoc.td.ie.ot2.df, caption = "p < .10, * p < .05, ** p < .001")
 
 ```
 
+### Plots
+
 ```{r H4-hist-plots, each=FALSE, echo=FALSE}
 
 # read in non-accumulated relative phase data
@@ -504,96 +532,96 @@ data <- data %>%
   mutate(Round = as.factor(Round)) 
   #mutate(rel_phase_rounded = as.factor(rel_phase_rounded))
 
-# plot by dyad (IE 1)
-ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
-  geom_histogram(binwidth = 8, color = "black", show.legend = FALSE) +
-  facet_wrap(~as.numeric(Dyad)) +
-  scale_fill_manual(values = IEcolors, name = "IE") +
-  xlab('Relative Phase') +
-  ylab('Frequency') +
-  ggtitle("Frequency of Relative Phase by Dyad (IE 1)") +
-  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, 
-                               page = 1, labeller = labeller('IE:Dyad' = c('1:1'="Dyad 1", 
-                                                                            '1:3'="Dyad 3", 
-                                                                            '1:5'="Dyad 5", 
-                                                                            '1:8'="Dyad 8", 
-                                                                            '1:10'="Dyad 10", 
-                                                                            '1:14'="Dyad 14", 
-                                                                            '1:15'="Dyad 15", 
-                                                                            '1:18'="Dyad 18", 
-                                                                            '1:21'="Dyad 21"))) +
-  theme_grey(base_size = 15) +
-  scale_x_continuous(breaks=c(-180,0,180))
-ggsave('./results/figures/exp_1-H4-dyad_hist_IE1.png', height = 5, width = 7)
-
-# plot by dyad (IE 2)
-ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
-  geom_histogram(binwidth = 8, color = "black", show.legend = FALSE) +
-  facet_wrap(~as.numeric(Dyad)) +
-  scale_fill_manual(values = IEcolors, name = "IE") +
-  xlab('Relative Phase') +
-  ylab('Frequency') +
-  ggtitle("Frequency of Relative Phase by Dyad (IE 2)") +
-  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, 
-                               page = 2, labeller = labeller('IE:Dyad' = c('2:9'="Dyad 9", 
-                                                                            '2:12'="Dyad 12", 
-                                                                            '2:16'="Dyad 16", 
-                                                                            '2:17'="Dyad 17", 
-                                                                            '2:19'="Dyad 19", 
-                                                                            '2:22'="Dyad 22", 
-                                                                            '2:24'="Dyad 24", 
-                                                                            '2:27'="Dyad 27", 
-                                                                            '2:31'="Dyad 31"))) +
-  theme_grey(base_size = 15) +
-  scale_x_continuous(breaks=c(-180,0,180))
-ggsave('./results/figures/exp_1-H4-dyad_hist_IE2.png', height = 5, width = 7)
-
-# plot by dyad (IE 3)
-ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
-  geom_histogram(binwidth = 8, color = "black", show.legend = FALSE) +
-  facet_wrap(~as.numeric(Dyad)) +
-  scale_fill_manual(values = IEcolors, name = "IE") +
-  xlab('Relative Phase') +
-  ylab('Frequency') +
-  ggtitle("Frequency of Relative Phase by Dyad (IE 3)") +
-  ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, 
-                               ncol = 3, page = 3, 
-                               labeller = labeller('IE:Dyad' = c('3:2'="Dyad 2", 
-                                                                  '3:4'="Dyad 4", 
-                                                                  '3:6'="Dyad 6", 
-                                                                  '3:7'="Dyad 7", 
-                                                                  '3:11'="Dyad 11", 
-                                                                  '3:13'="Dyad 13", 
-                                                                  '3:20'="Dyad 20", 
-                                                                  '3:23'="Dyad 23", 
-                                                                  '3:26'="Dyad 26"))) +
-  theme_grey(base_size = 15) +
-  scale_x_continuous(breaks=c(-180,0,180))
-ggsave('./results/figures/exp_1-H4-dyad_hist_IE3.png', height = 5, width = 7)
-
-# plot histograms by IE collapsed across dyads
-ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
-  geom_histogram(binwidth = 5, color = "black", show.legend = FALSE) +
-  facet_wrap(~as.numeric(IE), labeller = as_labeller(c("1"='IE 1', "2"='IE 2', "3"='IE 3'))) +
-  scale_fill_manual(values = IEcolors, name = "IE") +
-  xlab('Relative Phase') +
-  ylab('Frequency') +
-  ggtitle("Frequency of Relative Phase by IE Condition") +
-  theme_grey(base_size = 15) +
-  scale_x_continuous(breaks=c(-180,0,180))
-ggsave('./results/figures/H4-histogram_IE_collapsed.png', height = 5, width = 7)
-
-# plot histograms by TD collapsed across dyads
-ggplot(data, aes(x = rel_phase_rounded, fill = TD)) + 
-  geom_histogram(binwidth = 5, color = "black", show.legend = FALSE) +
-  facet_wrap(~as.numeric(TD), labeller = as_labeller(c("1"='TD 1', "2"='TD 2', "3"='TD 3'))) +
-  scale_fill_manual(values = TDcolors, name = "TD") +
-  xlab('Relative Phase') +
-  ylab('Frequency') +
-  ggtitle("Frequency of Relative Phase by TD Condition") +
-  theme_grey(base_size = 15) +
-  scale_x_continuous(breaks=c(-180,0,180))
-ggsave('./results/figures/H4-histogram_TD_collapsed.png', height = 5, width = 7)
+# # plot by dyad (IE 1)
+# ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
+#   geom_histogram(binwidth = 8, color = "black", show.legend = FALSE) +
+#   facet_wrap(~as.numeric(Dyad)) +
+#   scale_fill_manual(values = IEcolors, name = "IE") +
+#   xlab('Relative Phase') +
+#   ylab('Frequency') +
+#   ggtitle("Frequency of Relative Phase by Dyad (IE 1)") +
+#   ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, 
+#                                page = 1, labeller = labeller('IE:Dyad' = c('1:1'="Dyad 1", 
+#                                                                             '1:3'="Dyad 3", 
+#                                                                             '1:5'="Dyad 5", 
+#                                                                             '1:8'="Dyad 8", 
+#                                                                             '1:10'="Dyad 10", 
+#                                                                             '1:14'="Dyad 14", 
+#                                                                             '1:15'="Dyad 15", 
+#                                                                             '1:18'="Dyad 18", 
+#                                                                             '1:21'="Dyad 21"))) +
+#   theme_grey(base_size = 15) +
+#   scale_x_continuous(breaks=c(-180,0,180))
+# ggsave('./results/figures/exp_1-H4-dyad_hist_IE1.png', height = 5, width = 7)
+# 
+# # plot by dyad (IE 2)
+# ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
+#   geom_histogram(binwidth = 8, color = "black", show.legend = FALSE) +
+#   facet_wrap(~as.numeric(Dyad)) +
+#   scale_fill_manual(values = IEcolors, name = "IE") +
+#   xlab('Relative Phase') +
+#   ylab('Frequency') +
+#   ggtitle("Frequency of Relative Phase by Dyad (IE 2)") +
+#   ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, ncol = 3, 
+#                                page = 2, labeller = labeller('IE:Dyad' = c('2:9'="Dyad 9", 
+#                                                                             '2:12'="Dyad 12", 
+#                                                                             '2:16'="Dyad 16", 
+#                                                                             '2:17'="Dyad 17", 
+#                                                                             '2:19'="Dyad 19", 
+#                                                                             '2:22'="Dyad 22", 
+#                                                                             '2:24'="Dyad 24", 
+#                                                                             '2:27'="Dyad 27", 
+#                                                                             '2:31'="Dyad 31"))) +
+#   theme_grey(base_size = 15) +
+#   scale_x_continuous(breaks=c(-180,0,180))
+# ggsave('./results/figures/exp_1-H4-dyad_hist_IE2.png', height = 5, width = 7)
+# 
+# # plot by dyad (IE 3)
+# ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
+#   geom_histogram(binwidth = 8, color = "black", show.legend = FALSE) +
+#   facet_wrap(~as.numeric(Dyad)) +
+#   scale_fill_manual(values = IEcolors, name = "IE") +
+#   xlab('Relative Phase') +
+#   ylab('Frequency') +
+#   ggtitle("Frequency of Relative Phase by Dyad (IE 3)") +
+#   ggforce::facet_wrap_paginate(~ IE:Dyad, nrow = 3, 
+#                                ncol = 3, page = 3, 
+#                                labeller = labeller('IE:Dyad' = c('3:2'="Dyad 2", 
+#                                                                   '3:4'="Dyad 4", 
+#                                                                   '3:6'="Dyad 6", 
+#                                                                   '3:7'="Dyad 7", 
+#                                                                   '3:11'="Dyad 11", 
+#                                                                   '3:13'="Dyad 13", 
+#                                                                   '3:20'="Dyad 20", 
+#                                                                   '3:23'="Dyad 23", 
+#                                                                   '3:26'="Dyad 26"))) +
+#   theme_grey(base_size = 15) +
+#   scale_x_continuous(breaks=c(-180,0,180))
+# ggsave('./results/figures/exp_1-H4-dyad_hist_IE3.png', height = 5, width = 7)
+# 
+# # plot histograms by IE collapsed across dyads
+# ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
+#   geom_histogram(binwidth = 5, color = "black", show.legend = FALSE) +
+#   facet_wrap(~as.numeric(IE), labeller = as_labeller(c("1"='IE 1', "2"='IE 2', "3"='IE 3'))) +
+#   scale_fill_manual(values = IEcolors, name = "IE") +
+#   xlab('Relative Phase') +
+#   ylab('Frequency') +
+#   ggtitle("Frequency of Relative Phase by IE Condition") +
+#   theme_grey(base_size = 15) +
+#   scale_x_continuous(breaks=c(-180,0,180))
+# ggsave('./results/figures/H4-histogram_IE_collapsed.png', height = 5, width = 7)
+# 
+# # plot histograms by TD collapsed across dyads
+# ggplot(data, aes(x = rel_phase_rounded, fill = TD)) + 
+#   geom_histogram(binwidth = 5, color = "black", show.legend = FALSE) +
+#   facet_wrap(~as.numeric(TD), labeller = as_labeller(c("1"='TD 1', "2"='TD 2', "3"='TD 3'))) +
+#   scale_fill_manual(values = TDcolors, name = "TD") +
+#   xlab('Relative Phase') +
+#   ylab('Frequency') +
+#   ggtitle("Frequency of Relative Phase by TD Condition") +
+#   theme_grey(base_size = 15) +
+#   scale_x_continuous(breaks=c(-180,0,180))
+# ggsave('./results/figures/H4-histogram_TD_collapsed.png', height = 5, width = 7)
 
 # plot histograms by TD*IE collapsed across dyads
 ggplot(data, aes(x = rel_phase_rounded, fill = IE)) + 
