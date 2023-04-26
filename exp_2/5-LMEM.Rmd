@@ -1,0 +1,535 @@
+---
+title: "5-LMEM"
+output:
+  word_document: default
+  html_document: default
+date: "2023-04-26"
+---
+
+This Rmd runs inferential statistics and builds plots for Experiment 2.
+
+# Set up and data cleaning
+
+```{r setup, include=FALSE}
+
+# clear workspace and load packages
+rm(list=ls())
+#setwd("./Documents/github/division-of-labor-analyses/exp_2")
+source("../required_packages.R")
+source("../libraries_and_functions.R")
+
+# read in data
+data = read.table('./data/mdrqa_and_conditions.csv', 
+                       sep=',', header = TRUE)
+
+# create factors and rename variables
+data = data %>%
+  mutate(dyad = as.factor(dyad)) %>%
+  mutate(td_condition = as.factor(td_condition)) %>%
+  mutate(ie_condition = as.factor(ie_condition)) %>%
+  mutate(com_condition = as.factor(com_condition)) %>%
+  rename(TD = td_condition) %>% 
+  rename(IE = ie_condition) %>% 
+  rename(Determinism = DET) %>% 
+  rename(Time = timer) %>% 
+  mutate(Time2 = Time) %>%
+  rename(Dyad = dyad) %>% 
+  rename(Round = round_number) %>%
+  rename(COM = com_condition)
+
+# change contrasts for COM such that COM2 is the reference condition
+contrasts(data$COM) = contr.treatment(3, base = 2)
+
+# specify global plotting variables for TD: magma pallete
+TD1 = "#fcfdbf"
+TD2 = "#fc8961" 
+TD3 = "#b73779"
+TDcolors = c(TD1, TD2, TD3)
+# specify global plotting variables for IE: viridis pallete
+IE1 = "#fde725"
+IE2 = "#21918c"
+IE3 = "#3b528b"
+IEcolors = c(IE1, IE2, IE3)
+
+```
+
+## Hypothesis 1-3: 
+(1) Dyads in the restricted communication condition (COM2) will perform better than those in the no and free communication groups. 
+(2) Those in the no (COM1) and free (COM3) communication groups will perform similarly. 
+(3) Dyads in the restricted communication (COM2) and bi-directional task switching condition (IE 3) will outperform all other groups.
+
+### Model
+
+```{r H1-H3-model, echo=FALSE}
+
+###### 2. Construct the model for H1-H3 ######
+
+# check on normality of Time
+shapiro.test(data$Time)
+shapiro.test(log(data$Time)) # still not > .05, but more normal.
+shapiro.test(scale(data$Time))
+
+# take log of time
+data <- data %>% mutate(Time = log(Time))
+
+# raw model
+completion.model.raw = lmer(Time ~ 
+              # fixed effects
+              TD*IE*COM + Round +
+              # random effects of dyad
+              (1 | Dyad),
+            data = data, REML = FALSE)
+pander_lme(completion.model.raw,stats.caption = TRUE)
+#tab_model(completion.model.raw)
+
+# find residual DF for effect size calculation
+summary(completion.model.raw)
+df.residual = df.residual(completion.model.raw)
+
+# check out effect sizes
+effectsizes_H1_H3 <- as.data.frame(t_to_eta2(t = c(2.948, -3.874, 1.970, 2.006, -2.019),
+                                          df_error = c(df.residual, 
+                                                       df.residual, 
+                                                       df.residual,
+                                                       df.residual,
+                                                       df.residual)))
+
+# build the effect size table
+colnames(effectsizes_H1_H3) <- c("Partial Eta2", "CI", "CI Low" , "CI High" )
+effectsizes_H1_H3 <- effectsizes_H1_H3 %>% mutate_if(is.numeric, round, digits=3) %>% 
+  select(-CI) %>%
+  mutate(Predictor = c("TD2", "Round", "TD2:COM1", "IE2:COM3", "TD2:IE2:COM3")) %>%
+  relocate(Predictor)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+# build table
+pander(effectsizes_H1_H3, caption = "")
+
+```
+
+### Post-hoc: TDxIE
+
+```{r H1-H3-posthoc, echo=FALSE}
+
+# post-hoc of TD*IE
+posthoc.com.td <- (emmeans(completion.model.raw, list(pairwise ~ TD*IE), adjust = "tukey"))[2]
+posthoc.com.td.df <- as.data.frame(posthoc.com.td)
+# add significance stars
+stars <- as.data.frame(stars.pval(posthoc.com.td.df[,6]))
+posthoc.com.td.df <- cbind(posthoc.com.td.df, stars)
+# rename columns
+colnames(posthoc.com.td.df) <- c("Pairwise Comparison", "Estimate", "Std. Error", "DF", "t-value", "Adjusted p-value", " ")
+posthoc.com.td.df <- posthoc.com.td.df %>% mutate_if(is.numeric, round, digits=3) %>% select(-DF)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('round', 3)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+
+# build table
+pander(posthoc.com.td.df, caption = "")
+
+```
+
+### Plots
+
+```{r H1-H3-plots, each=FALSE, echo=FALSE}
+
+# # effect of TD
+# ggplot(data, aes(x=TD, y=Time, fill = TD)) + 
+#   geom_boxplot(show.legend = FALSE) +
+#   scale_fill_manual(values = TDcolors) +
+#   ggtitle("Impact of Task Demand on Time") +
+#   theme_grey(base_size = 12) +
+#   xlab('Task Demand') +
+#   ylab('Task Completion Time')
+# ggsave("./results/figures/exp_2-H1-H2-TD.png")
+# 
+# # effect of COM
+# ggplot(data, aes(x=COM, y=Time, fill = COM)) + 
+#   geom_boxplot(show.legend = FALSE) +
+#   scale_fill_manual(values = IEcolors) +
+#   theme_grey(base_size = 12) +
+#   xlab('Communication')
+# ggsave("./results/figures/exp_2-H1-H2-plot_COM.png")
+# 
+# # interaction between IE and COM
+# ggplot(data) +
+#   aes(x = IE, y = Time, fill = IE) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_wrap(~COM, labeller = as_labeller(c("1"='COM 1', "2"='COM 2', "3"='COM 3'))) +
+#   scale_fill_manual(values = IEcolors) + # magma
+#   theme_grey(base_size = 14) +
+#   xlab('Individual Effectivities') +
+#   ylab('Task Completion Time')
+# ggsave("./results/figures/exp_2-H1-H2-plot_IExCOM.png", width = 7, height = 5)
+
+# interaction between TD and COM
+ggplot(data) +
+  aes(x = TD, y = Time, fill = TD) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~COM, labeller = as_labeller(c("1"='COM 1', "2"='COM 2', "3"='COM 3'))) +
+  scale_fill_manual(values = TDcolors) + # magma
+  theme_grey(base_size = 14) +
+  xlab('Task Demand') +
+  ylab('Task Completion Time')
+ggsave("./results/figures/exp_2-H1-plot_TDxCOM.png", width = 7, height = 5)
+
+# # interaction between TD and Round
+# ggplot(data) +
+#   aes(x = as.factor(Round), y = Time, fill = as.factor(Round)) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_wrap(~TD, labeller = as_labeller(c("1"='TD 1', "2"='TD 2', "3"='TD 3'))) +
+#   scale_fill_viridis(discrete = TRUE, option = "rocket") +
+#   ggtitle("Impact of Task Demand and Round on Time") +
+#   theme_grey(base_size = 12) +
+#   labs(fill = "Round") +
+#   xlab('Round')
+# ggsave("./results/figures/exp_1-H2-plot_TDxIExRound.png")
+
+# interaction between TD, IE, and COM
+ggplot(data) +
+  aes(x = TD, y = Time, fill = TD) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_grid(COM~IE, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"), IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
+  scale_fill_manual(values = TDcolors) + # magma
+  ggtitle("Impact of TD, IE, and COM on Time") +
+  theme_grey(base_size = 14) +
+  xlab('Task Demand') +
+  ylab('Task Completion Time')
+ggsave("./results/figures/exp_2-H1-H3-plot_TDxIEXCOM.png", width = 7, height = 5)
+
+# # effect of Round
+# ggplot(data) +
+#   aes(x = as.factor(Round), y = Time2, fill = as.factor(Round)) +
+#   geom_boxplot(show.legend = FALSE) +
+#   scale_fill_viridis(discrete = TRUE, option = "rocket") +
+#   ggtitle("Impact of Round on Time") +
+#   theme_grey(base_size = 12) +
+#   labs(fill = "Round") +
+#   xlab('Round') +
+#   ylab('Time')
+# ggsave("./results/figures/exp_1-H2-plot_TDxIExRound.png")
+
+```
+
+### Post-hoc: Variability of IE
+
+```{r post-hoc-variability}
+# test for difference in variability for 
+data_IE1 <- data %>% filter(IE == "1")
+data_IE2 <- data %>% filter(IE == "2")
+data_IE3 <- data %>% filter(IE == "3")
+
+# run levene's tests
+levene.ie1.td <- leveneTest(Time ~ TD, data = data_IE1)
+levene.ie2.td <- leveneTest(Time ~ TD, data = data_IE2)
+levene.ie3.td <- leveneTest(Time ~ TD, data = data_IE3)
+
+
+```
+
+## Hypothesis 4: 
+(4) Dyads in the restricted communication (COM2) and bi-directional task switching condition (IE1) will engage in the most coordination. 
+
+### Model
+
+```{r H4-model, each=FALSE}
+
+# raw model
+coordination.model.raw = lmer(Determinism ~ 
+               # fixed effects
+               TD*IE*COM*Round +
+               # random effects of dyad
+               (1 | Dyad),
+             data = data, REML = FALSE)
+pander_lme(coordination.model.raw,stats.caption = TRUE)
+#tab_model(coordination.model.raw)
+
+# find residual DF for effect size calculation
+summary(coordination.model.raw) # gives df.resid
+df.residual = df.residual(coordination.model.raw) 
+
+# check out effect sizes
+effectsizes_H4 <- as.data.frame(t_to_eta2(t = c(-2.944, 2.293, 2.710, 2.384, 2.895,
+                                                3.534, 2.762, -2.086, 2.423, -3.241,
+                                                -2.614, -3.319, -2.933, -2.240, -2.524,
+                                                -2.710, -2.790, -3.422, 2.737, 2.879,
+                                                1.973, 2.774, 3.272),
+                                          df_error = c(df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual)))
+
+# build the effect size table
+colnames(effectsizes_H4) <- c("Partial Eta2", "CI", "CI Low" , "CI High" )
+effectsizes_H4 <- effectsizes_H4 %>% mutate_if(is.numeric, round, digits=3) %>% 
+  select(-CI) %>%
+  mutate(Predictor = c("TD3", "Round", "TD3:IE2", "TD3:IE3", "TD3:COM1", 
+                       "TD3:COM3", "TD3:Round", "IE2:Round", "COM3:Round", 
+                       "TD3:IE2:COM1", "TD3:IE3:COM1", "TD3:IE2:COM3", "TD3:IE3:COM3", "TD3:IE2:Round",
+                       "TD3:IE3:Round", "TD3:COM1:Round", "TD2:COM3:Round", "TD3:COM3:Round",
+                       "TD3:IE2:COM1:Round", "TD3:IE3:COM1:Round", "TD2:IE2:COM3:Round",
+                       "TD3:IE2:COM3:Round", "TD3:IE3:COM3:Round")) %>%
+  relocate(Predictor)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+# build table
+pander(effectsizes_H4, caption = "")
+
+```
+
+### Post-hoc: TD*IE
+
+```{r H4-posthoc, echo = FALSE}
+
+# post-hoc of IE*TD
+posthoc.ie.td <- (emmeans(completion.model.raw, list(pairwise ~ TD*IE), adjust = "tukey"))[2]
+posthoc.ie.td.df <- as.data.frame(posthoc.ie.td)
+# add significance stars
+stars <- as.data.frame(stars.pval(posthoc.ie.td.df[,6]))
+posthoc.ie.td.df <- cbind(posthoc.ie.td.df, stars)
+# rename columns
+colnames(posthoc.ie.td.df) <- c("Pairwise Comparison", "Estimate", "Std. Error", "DF", "t-value", "Adjusted p-value", " ")
+posthoc.ie.td.df <- posthoc.ie.td.df %>% mutate_if(is.numeric, round, digits=3) %>% select(-DF)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('round', 3)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+
+# build table
+pander(posthoc.ie.td.df, caption = "")
+
+```
+
+### Plots
+
+```{r H4-plots, each=FALSE}
+
+# # effect of TD
+# ggplot(data, aes(x = TD, y = Determinism, fill = TD)) + 
+#   geom_boxplot(show.legend = FALSE) +
+#   scale_fill_manual(values = TDcolors) +
+#   xlab('Task Demand') +
+#   ggtitle("Determism by TD") +
+#   theme_grey(base_size = 14) 
+# ggsave('./results/figures/exp_2-H4-TD_collapsed.png')
+# 
+# # effect of COM
+# ggplot(data, aes(x = COM, y = Determinism, fill = COM)) + 
+#   geom_boxplot(show.legend = FALSE) +
+#   scale_fill_manual(values = TDcolors) +
+#   xlab('Communication') +
+#   ggtitle("Determism by COM") +
+#   theme_grey(base_size = 14) 
+# ggsave('./results/figures/exp_2-H4-COM_collapsed.png')
+# 
+# # effect of IE
+# ggplot(data, aes(x = IE, y = Determinism, fill = IE)) +
+#   geom_boxplot(show.legend = FALSE) +
+#   scale_fill_manual(values = IEcolors) +
+#   xlab('Individual Effectivities') +
+#   ggtitle("Determism by IE") +
+#   theme_grey(base_size = 14)
+# ggsave('./results/figures/exp_2-H4-IE_collapsed.png')
+
+# interaction between TD and IE
+ggplot(data) +
+  aes(x = TD, y = Determinism, fill = TD) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~IE, labeller = as_labeller(c("1"='IE 1', "2"='IE 2', "3"='IE 3'))) +
+  scale_fill_manual(values = TDcolors) + # magma
+  theme_grey(base_size = 14) +
+  xlab('Task Demand')
+ggsave("./results/figures/exp_2-H4-plot_TDxIE.png", width = 5, height = 5)
+
+# # interaction between TD and COM
+# ggplot(data) +
+#   aes(x = TD, y = Determinism, fill = TD) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_wrap(~COM, labeller = as_labeller(c("1"='COM 1', "2"='COM 2', "3"='COM 3'))) +
+#   scale_fill_manual(values = TDcolors) + # magma
+#   theme_grey(base_size = 14) +
+#   ggtitle("Determism by TD and COM") +
+#   xlab('Task Demand')
+# ggsave("./results/figures/exp_2-H4-plot_TDxCOM.png")
+
+# interaction between IE and COM
+ggplot(data) +
+  aes(x = IE, y = Determinism, fill = IE) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~COM, labeller = as_labeller(c("1"='COM 1', "2"='COM 2', "3"='COM 3'))) +
+  scale_fill_manual(values = IEcolors) + # magma
+  theme_grey(base_size = 14) +
+  ggtitle("Determism by IE and COM") +
+  xlab('Individual Effectivities')
+ggsave("./results/figures/exp_2-H4-plot_IExCOM.png")
+
+# # interaction between TD, IE, and COM
+# ggplot(data) +
+#   aes(x = TD, y = Determinism, fill = TD) +
+#   geom_boxplot() +
+#   scale_fill_manual(values = TDcolors) + # magma
+#   facet_grid(COM~IE, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"), 
+#                                          IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
+#   theme_grey(base_size = 14) +
+#   ggtitle("Determism by TD, IE, and COM") +
+#   xlab('Task Demand')
+# ggsave("./results/figures/exp_2-H4-boxplot_TDxIExCOM.png")
+# 
+# # look at Time-Determinism relationship for TD and COM
+# ggplot(data) +
+#   aes(x = Time2, y = Determinism, color = TD) +
+#   geom_point() +
+#   scale_color_manual(values = TDcolors) + # magma
+#   facet_grid(~COM, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+#   theme_grey(base_size = 14) +
+#   ggtitle("Scatter of Time-Determinism Relationship by TD and COM") +
+#   xlab('Time')
+# ggsave("./results/figures/exp_2-H4-plot_scatter_TDxCOM.png")
+
+# look at Time-Determinism relationship for IE and COM
+ggplot(data) +
+  aes(x = Time, y = Determinism, fill = IE) +
+  geom_point(colour = "black", pch=21, size = 2) +
+  #scale_color_manual(values = IEcolors) + # magma
+  scale_fill_manual(values = c("1" = "#fde725", "2" = "#21918c", "3" = "#3b528b")) + # magma
+  facet_grid(~COM, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+  theme_grey(base_size = 16) +
+  #ggtitle("Scatter of Time-Determinism Relationship by TD and COM") +
+  xlab('Task Completion Time')
+ggsave("./results/figures/exp_2-H4-plot_scatter_IExCOM.png", height = 6, width = 8)
+
+# # look at Time-Determinism relationship for TD and IE
+# ggplot(data) +
+#   aes(x = Time2, y = Determinism, color = TD) +
+#   geom_point() +
+#   scale_color_manual(values = TDcolors) + # magma
+#   facet_grid(~IE, labeller = labeller(IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
+#   theme_grey(base_size = 14) +
+#   ggtitle("Scatter of Time-Determinism Relationship by TD and IE") +
+#   xlab('Time')
+# ggsave("./results/figures/exp_2-H4-plot_scatter_TDxIE.png")
+
+# look at Time for TD and COM across rounds
+ggplot(data) +
+  aes(x = Round, y = Time2, color = TD) +
+  geom_point(alpha = .4) +
+  #geom_smooth() +
+  geom_smooth(method = 'lm', se = FALSE) +
+  scale_color_manual(values = TDcolors) + # magma
+  facet_grid(~COM,labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+  theme_grey(base_size = 16) +
+  xlab('Round') +
+  ylab('Task Completion Time') +
+  ylim(c(43, 100))
+ggsave("./results/figures/exp_2-H4-plot_scatter_COMxTDxRound.png", height = 6, width = 7)
+
+# # look at Time for IE and COM across rounds
+# ggplot(data) +
+#   aes(x = Round, y = Time2, color = IE) +
+#   geom_point(alpha = .4) +
+#   #geom_smooth() +
+#   geom_smooth(method = 'lm', se = FALSE) +
+#   scale_color_manual(values = IEcolors) + # magma
+#   facet_grid(~COM,labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+#   theme_grey(base_size = 16) +
+#   #ggtitle("Scatter of Time-Determinism Relationship by TD and COM") +
+#   xlab('Round') +
+#   ylab('Completion Time') +
+#   ylim(c(43, 100))
+# ggsave("./results/figures/exp_2-H4-plot_scatter_COMxIExRound.png", height = 6, width = 7)
+
+```
+
+```{r additional-plots}
+
+TD1 = "#fcfdbf"
+TD2 = "#fc8961" 
+TD3 = "#b73779"
+TDcolors = c(TD1, TD2, TD3)
+# specify global plotting variables for IE: viridis pallete
+IE1 = "#fde725"
+IE2 = "#21918c"
+IE3 = "#3b528b"
+
+# plot histograms by TD*IE collapsed across dyads
+ggplot(data) + 
+  geom_histogram(aes(x=Time2,y=..density..), binwidth = 2, color = "black", 
+                 fill = IE2, show.legend = FALSE) +
+  geom_density(aes(x=Time2,y=..density..),lwd = .7, colour = "black",
+               fill = IE2, alpha = 0.4) +
+  xlab('Task Completion Time') +
+  ylab('Density') +
+  ggtitle("Distribution of Time") +
+  theme_grey(base_size = 24)
+ggsave('./results/figures/exp_2-histogram_time.png', height = 8, width = 10)
+
+```
+
+### Post-hoc: Variability of COM
+
+``` {r post-hoc-variability}
+
+# test for difference in variability for 
+data_IE1 <- data %>% filter(IE == "1")
+data_IE3 <- data %>% filter(IE == "3")
+data_TD2 <- data %>% filter(TD == "2")
+
+# COM2-by-IE1 and both COM1-by-IE1 and COM3-by-IE1
+levene.ie1 <- leveneTest(Determinism ~ COM, data = data_IE1)
+
+# COM2-by-IE3 and both COM1-by-IE3 and COM3-by-IE3
+levene.ie3 <- leveneTest(Determinism ~ COM, data = data_IE3)
+
+# COM2-by-IE3 and both COM1-by-IE3 and COM3-by-IE3
+levene.td2 <- leveneTest(Determinism ~ COM, data = data_TD2)
+
+# specify global plotting variables for COM
+COM1 = "#0d0887"
+COM2 = "#7e03a8"
+COM3 = "#cc4778"
+COMcolors = c(COM1, COM2, COM3)
+
+# plot the differences
+ggplot(data_IE1) +
+  aes(x = COM, y = Determinism, fill = COM) +
+  geom_boxplot(show.legend = FALSE, notch  = FALSE) +
+  #facet_wrap(~COM, labeller = as_labeller(c("1"='COM 1', "2"='COM 2', "3"='COM 3'))) +
+  scale_fill_manual(values = COMcolors) + # magma
+  theme_grey(base_size = 14) +
+  #ggtitle("Determism by IE and COM") +
+  xlab('Communication')
+
+# plot the differences
+ggplot(data_TD2) +
+  aes(x = COM, y = Determinism, fill = COM) +
+  geom_boxplot(show.legend = FALSE, notch  = FALSE) +
+  #facet_wrap(~COM, labeller = as_labeller(c("1"='COM 1', "2"='COM 2', "3"='COM 3'))) +
+  scale_fill_manual(values = COMcolors) + # magma
+  theme_grey(base_size = 14) +
+  #ggtitle("Determism by IE and COM") +
+  xlab('Communication')
+
+```
