@@ -232,7 +232,6 @@ levene.ie1.td <- leveneTest(Time ~ TD, data = data_IE1)
 levene.ie2.td <- leveneTest(Time ~ TD, data = data_IE2)
 levene.ie3.td <- leveneTest(Time ~ TD, data = data_IE3)
 
-
 ```
 
 ## Hypothesis 4: 
@@ -418,8 +417,21 @@ ggplot(data) +
   facet_grid(~COM, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
   theme_grey(base_size = 16) +
   #ggtitle("Scatter of Time-Determinism Relationship by TD and COM") +
-  xlab('Task Completion Time')
+  xlab('Task Completion Time') +
+  scale_x_continuous(breaks=c(3.4, 3.8, 4.5))
 ggsave("./results/figures/exp_2-H4-plot_scatter_IExCOM.png", height = 6, width = 8)
+
+# look at Time-Determinism relationship for IE and COM
+ggplot(data) +
+  aes(x = Time, y = Determinism, fill = COM) +
+  geom_point(colour = "black", pch=21, size = 2) +
+  scale_fill_manual(values = COMcolors) +
+  facet_grid(~IE, labeller = labeller(IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
+  theme_grey(base_size = 16) +
+  #ggtitle("Scatter of Time-Determinism Relationship by TD and COM") +
+  xlab('Task Completion Time') +
+  scale_x_continuous(breaks=c(3.4, 3.8, 4.5))
+ggsave("./results/figures/exp_2-H4-plot_scatter_IExCOM-flipped.png", height = 6, width = 8)
 
 # # look at Time-Determinism relationship for TD and IE
 # ggplot(data) +
@@ -488,23 +500,40 @@ ggsave('./results/figures/exp_2-histogram_time.png', height = 8, width = 10)
 
 ```
 
-### Post-hoc: Variability of COM
+### Post-hoc: Variability of COM across IE conditions
 
 ``` {r post-hoc-variability}
 
-# test for difference in variability for 
+# subset the data
 data_IE1 <- data %>% filter(IE == "1")
+data_IE2 <- data %>% filter(IE == "2")
 data_IE3 <- data %>% filter(IE == "3")
-data_TD2 <- data %>% filter(TD == "2")
+data_COM1 <- data %>% filter(COM == "1")
+data_COM2 <- data %>% filter(COM == "2")
+data_COM3 <- data %>% filter(COM == "3")
+data_COM12_IE1 <- data %>% filter(COM == "1" | COM == "2") %>% filter(IE == "1")
+data_COM12_IE3 <- data %>% filter(COM == "1" | COM == "2") %>% filter(IE == "3")
+data_COM23_IE1 <- data %>% filter(COM == "2" | COM == "3") %>% filter(IE == "1")
+data_COM23_IE3 <- data %>% filter(COM == "2" | COM == "3") %>% filter(IE == "3")
 
-# COM2-by-IE1 and both COM1-by-IE1 and COM3-by-IE1
+# test for a general difference in variability
+levene.ie.td <- leveneTest(Determinism ~ COM, data = data)
+
+# look at difference in COM for each IE
 levene.ie1 <- leveneTest(Determinism ~ COM, data = data_IE1)
-
-# COM2-by-IE3 and both COM1-by-IE3 and COM3-by-IE3
+levene.ie2 <- leveneTest(Determinism ~ COM, data = data_IE2)
 levene.ie3 <- leveneTest(Determinism ~ COM, data = data_IE3)
 
-# COM2-by-IE3 and both COM1-by-IE3 and COM3-by-IE3
-levene.td2 <- leveneTest(Determinism ~ COM, data = data_TD2)
+# look at differences in IE variabiltiy between COM1 and COM2
+levene.com12.ie1 <- leveneTest(Determinism ~ COM, data = data_COM12_IE1)
+levene.com12.ie3 <- leveneTest(Determinism ~ COM, data = data_COM12_IE3)
+levene.com23.ie1 <- leveneTest(Determinism ~ COM, data = data_COM23_IE1)
+levene.com23.ie3 <- leveneTest(Determinism ~ COM, data = data_COM23_IE3)
+
+# look at differences in IE for each COM
+levene.com1 <- leveneTest(Determinism ~ COM*IE, data = data_COM1)
+levene.com2 <- leveneTest(Determinism ~ COM*IE, data = data_COM2)
+levene.com3 <- leveneTest(Determinism ~ COM*IE, data = data_COM3)
 
 # specify global plotting variables for COM
 COM1 = "#0d0887"

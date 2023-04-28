@@ -21,7 +21,8 @@ required_packages = c(
   'ggforce',
   'data.table',
   'scales',
-  'tidyr'
+  'tidyr',
+  'car'
 )
 
 # load required packages

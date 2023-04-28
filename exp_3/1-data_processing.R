@@ -129,7 +129,7 @@ d56_filt <- d56_filt %>% filter(Time < 816.8 | Time > 835.36) # r6 restarted
 d57_filt <- d57 %>% filter(Time < 329.3 | Time > 345.7) # r2 restarted 
 d58_filt <- d58 %>% filter(Time < 1047.16 | Time > 1100.58) # r2 restarted 
 d59_filt <- d59 %>% filter(!(Time >= 172.48  & Time <= 252.54 & round_number == 1)) # r2 glitched out; keep first r1 
-d59_filt <- d59_filt %>% filter(!(Time >= 1397.54 & Time <= 1416.82 & round_number == 2)) # r2 glitched out; keep second r2 
+d59_filt <- d59_filt %>% filter(!(Time >= 1397.54 & Time <= 1416.84 & round_number == 2)) # r2 glitched out; keep second r2 
 d62_filt <- d62 %>% filter(round_number != 3) # remove entire round 3 
 d63_filt <- d63 %>% filter(Time < 275.1 | Time > 333.06) # r2 restarted 
 d66_filt <- d66 %>% filter(round_number != 1) # remove entire round 1

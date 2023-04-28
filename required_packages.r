@@ -21,7 +21,8 @@ required_packages = c(
   'ggforce',
   'data.table',
   'scales',
-  'tidyr'
+  'tidyr',
+  'car'
 )
 
 # install missing packages (adapted from <http://stackoverflow.com/a/4090208> and a-paxton/perception-memory-coordination)

@@ -1,0 +1,821 @@
+---
+title: "6-LMEM"
+output:
+  word_document: default
+  html_document: default
+date: "2023-04-26"
+---
+
+This Rmd runs inferential statistics and builds plots for Experiment 3.
+
+# Set up
+
+```{r setup, include=FALSE}
+
+# clear workspace and load packages
+rm(list=ls())
+#setwd("./Documents/github/division-of-labor-analyses/exp_3")
+source("../required_packages.R")
+source("../libraries_and_functions.R")
+
+# read in data
+data <- read.csv("./data/data_prepped-exp_3.csv")
+mdrqa_results <- read.csv("./data/mdrqa_and_conditions.csv")
+
+# specify global plotting variables for TD: magma pallete
+TD1 = "#fcfdbf"
+TD2 = "#fc8961" 
+TD3 = "#b73779"
+TDcolors = c(TD1, TD2, TD3)
+# specify global plotting variables for IE: viridis pallete
+IE1 = "#fde725"
+IE2 = "#21918c"
+IE3 = "#3b528b"
+IEcolors = c(IE1, IE2, IE3)
+# specify global plotting variables for COM
+COM1 = "#0d0887"
+COM2 = "#7e03a8"
+COM3 = "#cc4778"
+COMcolors = c(COM1, COM2, COM3)
+
+# change conditions and dyads to be factors
+data <- data %>%
+  mutate(TD = as.factor(td_condition)) %>%
+  mutate(IE = as.factor(ie_condition)) %>%
+  mutate(COM = as.factor(com_condition)) %>%
+  mutate(Dyad = as.factor(dyad)) %>%
+  mutate(Round = round_number) %>%
+  mutate(Time = timer)
+  
+# change contrasts for COM such that COM2 is the reference condition
+contrasts(data$COM) = contr.treatment(3, base = 2)
+
+## filter data in wide format for synchrony analyses
+wide_raw <- data %>%
+  distinct(Dyad, Round, IE, TD, 
+           COM, Time, deg_sync_free, deg_sync_free2, 
+           deg_sync_restrict, deg_sync_restrict2, mean_team_sync) %>%
+  # remove the observations for before someone started moving
+  drop_na(deg_sync_free, deg_sync_free2, deg_sync_restrict, deg_sync_restrict2, mean_team_sync) %>%
+  mutate(Time2 = Time)# keep raw time as a separate variable for plotting
+
+# restructure data and create player type indicator for player-team analyses
+long_raw <- gather(wide_raw, player, deg_player_sync, deg_sync_free:deg_sync_restrict2)
+long_raw$PlayerType <- as.factor(ifelse(long_raw$player == "deg_sync_free" | long_raw$player == "deg_sync_free2", 2, 1))
+long_raw <- long_raw %>% mutate(Round2 = Round) %>% mutate(Round = scale(Round))
+# add factors and rename variables for H1-H4
+mdrqa_raw = mdrqa_results %>%
+  mutate(Dyad = as.factor(dyad)) %>%
+  mutate(TD = as.factor(td_condition)) %>%
+  mutate(IE = as.factor(ie_condition)) %>%
+  mutate(COM = as.factor(com_condition)) %>%
+  mutate(Time2 = timer) %>% # keep raw time as a separate variable for plotting
+  rename(Time = timer) %>% # use Time to be log transformed
+  rename(Determinism = DET) %>%
+  rename(Round = round_number)
+contrasts(mdrqa_raw$COM) = contr.treatment(3, base = 2)
+
+```
+
+## Hypothesis 1-3: 
+(1) Dyads in the restricted communication condition (COM2) will perform better than those in the no and free communication groups.
+(2) Dyads in the no (COM1) and free (COM3) communication groups will perform similarly. 
+(3) Dyads in the restricted communication (COM2) and bi-directional task switching condition (IE1) will outperform all other groups.
+
+### Model 
+
+```{r H1-H3-model, echo=FALSE}
+
+###### 2. Construct the model for H1-H3 ######
+
+# check on normality of Time
+shapiro.test(mdrqa_raw$Time)
+shapiro.test(log(mdrqa_raw$Time)) # still not > .05, but more normal.
+shapiro.test(scale(mdrqa_raw$Time))
+
+# take log of time
+mdrqa_raw <- mdrqa_raw %>%
+  mutate(Time2 = Time) %>%
+  mutate(Time = log(Time))
+
+# raw model
+completion.model.raw = lmer(Time ~ 
+                              # fixed effects
+                              TD*IE*COM*Round +
+                              # random effects of dyad
+                              (1 | dyad),
+                            data = mdrqa_raw, REML = FALSE)
+pander_lme(completion.model.raw,stats.caption = TRUE)
+#tab_model(completion.model.raw)
+
+# find residual DF for effect size calculation
+summary(completion.model.raw) # df.resid
+df.residual = df.residual(completion.model.raw)
+
+# check out effect sizes
+effectsizes_H1_H3 <- as.data.frame(t_to_eta2(t = c(2.721, 2.583, -3.162, -1.993, -2.257,
+                                                   -2.461, -2.000, -2.145, -2.697, -2.077,
+                                                    2.297, 3.288, 14.946,  2.588, 3.696,
+                                                   2.246, 2.791, -2.434,  -3.354, -11.764, -2.530),
+                                          df_error = c(df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual,df.residual,
+                                                       df.residual)))
+
+# build the effect size table
+colnames(effectsizes_H1_H3) <- c("Partial Eta2", "CI", "CI Low" , "CI High" )
+effectsizes_H1_H3 <- effectsizes_H1_H3 %>% mutate_if(is.numeric, round, digits=3) %>%
+  select(-CI) %>%
+  mutate(Predictor = c("TD2","COM1", "TD2:COM1", "TD3:COM1", "TD2:COM3", 
+                       "IE3:COM1", "IE3:COM3", "TD2:Round", "COM1:Round", "COM3:Round",
+                       "TD2:IE2:COM1", "TD2:IE3:COM1", "TD3:COM3:COM1","TD2:COM3:COM3", 
+                       "TD2:COM1:Round","TD3:COM1:Round","TD2:COM3:Round","TD2:IE2:COM1:Round",
+                       "TD2:IE3:COM1:Round","TD3:IE3:COM1:Round", "TD2:IE3:COM3:Round")) %>%
+  relocate(Predictor)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+# build table
+pander(effectsizes_H1_H3, caption = "")
+
+```
+
+### Plots
+
+```{r H1-H3-plots, each=FALSE, echo=FALSE}
+
+# effect of COM (H1 and H2)
+ggplot(mdrqa_raw) +
+  aes(x=COM, y=Time2, fill = COM) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = COMcolors) +
+  ggtitle("Impact of Communication on Time") +
+  theme_grey(base_size = 14) +
+  xlab('Communication') +
+  ylab('Task Completion Time')
+ggsave("./results/figures/exp_3-H1-H3-plot_COM.png", height = 5, width = 7)
+
+# # effect of IE and COM (H3)
+# ggplot(mdrqa_raw) +
+#   aes(x = IE, y = Time2, fill = IE) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_wrap(~COM, labeller = as_labeller(c("1"='COM 1', "2"='COM 2', "3"='COM 3'))) +
+#   scale_fill_manual(values = IEcolors) + # magma
+#   #ggtitle("Impact of Task Demand and Individual Effectivities on Time") +
+#   theme_grey(base_size = 14) +
+#   xlab('Individual Effectivities')
+# ggsave("./results/figures/exp_3-H1-H3-plot_IExCOM.png", height = 5, width = 7)
+# 
+# # effect of TD
+# ggplot(mdrqa_raw) +
+#   aes(x=TD, y=Time2, fill = TD) + 
+#   geom_boxplot(show.legend = FALSE) +
+#   scale_fill_manual(values = TDcolors) +
+#   ggtitle("Impact of TD on Time") +
+#   theme_grey(base_size = 14) +
+#   xlab('Task Demand')
+# ggsave("./results/figures/exp_3-H1-H3-plot_TD.png")
+# 
+# # interaction between TD and COM
+# ggplot(mdrqa_raw) +
+#   aes(x = TD, y = Time2, fill = TD) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_wrap(~COM, labeller = as_labeller(c("1"='COM 1', "2"='COM 2', "3"='COM 3'))) +
+#   scale_fill_manual(values = TDcolors) + # magma
+#   ggtitle("Impact of Task Demand and Communication on Time") +
+#   theme_grey(base_size = 14) +
+#   xlab('Task Demand')
+# ggsave("./results/figures/exp_3-H1-H3-plot_TDxCOM.png")
+
+# interaction between TD and IE
+ggplot(mdrqa_raw) +
+  aes(x = TD, y = Time2, fill = TD) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~IE, labeller = as_labeller(c("1"='IE 1', "2"='IE 2', "3"='IE 3'))) +
+  scale_fill_manual(values = TDcolors) + # magma
+  ggtitle("Impact of Task Demand and Individual Effectivities on Time") +
+  theme_grey(base_size = 14) +
+  xlab('Task Demand') +
+  ylab('Task Completion Time')
+ggsave("./results/figures/exp_3-H1-H3-plot_TDxIE.png", height = 5, width = 7)
+
+# # interaction between TD, IE, and COM
+# ggplot(mdrqa_raw) +
+#   aes(x = TD, y = Time2, fill = TD) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_grid(COM~IE, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"), IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
+#   scale_fill_manual(values = TDcolors) + # magma
+#   ggtitle("Impact of TD, IE, and COM on Time") +
+#   theme_grey(base_size = 14) +
+#   xlab('Task Demand')
+# ggsave("./results/figures/exp_3-H1-H3-plot_TDxIEXCOM.png")
+# 
+# # interaction between TD, COM, and Round
+# ggplot(mdrqa_raw) +
+#   aes(x = as.factor(Round), y = Time, fill = as.factor(Round)) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_grid(COM~TD, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"), TD = c('1'="TD 1", '2'="TD 2", '3'="TD 3"))) +
+#   #scale_fill_manual(values = IEcolors) + # magma
+#   ggtitle("Impact of TD, COM, and Round on Time") +
+#   theme_grey(base_size = 14) +
+#   xlab('Round')
+# ggsave("./results/figures/exp_3-H1-H3-plot_TDxCOMxRound.png")
+
+# plot histogram of Time
+ggplot(mdrqa_raw, aes(x = Time2)) + 
+  geom_histogram(aes(x=Time2,y=..density..), binwidth = 2, color = "black", 
+                 fill = IE2, show.legend = FALSE) +
+  geom_density(aes(x=Time2,y=..density..),lwd = .7, colour = "black",
+               fill = IE2, alpha = 0.4) +
+  xlab('Time') +
+  ylab('Density') +
+  ggtitle("Distribution of Time") +
+  theme_grey(base_size = 24)
+ggsave('./results/figures/exp_3-histogram_time.png', height = 8, width = 10)
+
+```
+
+### Post-hoc
+
+```{r H1-H3-posthoc, echo=FALSE}
+
+# post-hoc of IE*TD2
+posthoc.ie.td <- (emmeans(completion.model.raw, list(pairwise ~ TD*IE), adjust = "tukey"))[2]
+posthoc.ie.td.df <- as.data.frame(posthoc.ie.td)
+# add significance stars
+stars <- as.data.frame(stars.pval(posthoc.ie.td.df[,6]))
+posthoc.ie.td.df <- cbind(posthoc.ie.td.df, stars)
+# rename columns
+colnames(posthoc.ie.td.df) <- c("Pairwise Comparison", "Estimate", "Std. Error", "DF", "t-value", "Adjusted p-value", " ")
+posthoc.ie.td.df <- posthoc.ie.td.df %>% mutate_if(is.numeric, round, digits=3) %>% select(-DF)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('round', 3)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+
+# build table
+pander(posthoc.ie.td.df, caption = "p < .10, * p < .05, ** p < .001")
+
+```
+
+## Hypothesis 4: 
+H4: Dyads in the restricted communication and bi-directional task switching condition (Condition 3) will engage in the most in-phase and anti-phase coordination. 
+
+### Model
+
+```{r H4-model, each=FALSE, echo = FALSE}
+
+# raw model
+coordination.model.raw = lmer(Determinism ~ 
+                                # fixed effects
+                                TD*IE*COM*Round +
+                                # random effects of dyad
+                                (1 | dyad),
+                              data = mdrqa_raw, REML = FALSE)
+pander_lme(coordination.model.raw,stats.caption = TRUE)
+tab_model(coordination.model.raw)
+
+# find residual DF for effect size calculation
+summary(coordination.model.raw) # gives df.resid
+df.residual = df.residual(coordination.model.raw)
+
+# check out effect sizes
+effectsizes_H4 <- as.data.frame(t_to_eta2(t = c(2.053, -2.624, 2.558),
+                                          df_error = c(df.residual,df.residual,
+                                                       df.residual)))
+
+# build the effect size table
+colnames(effectsizes_H4) <- c("Partial Eta2", "CI", "CI Low" , "CI High" )
+effectsizes_H4 <- effectsizes_H4 %>% mutate_if(is.numeric, round, digits=3) %>%
+  select(-CI) %>%
+  mutate(Predictor = c("IE2:COM1","TD3:IE2:COM1","TD3:IE2:COM1:Round")) %>%
+  relocate(Predictor)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+# build table
+pander(effectsizes_H4, caption = "")
+
+```
+
+### Plots
+
+```{r H4-plots}
+
+# interaction between IE and COM
+ggplot(mdrqa_raw) +
+  aes(x = IE, y = Determinism, fill = IE) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~COM, labeller = as_labeller(c("1"='COM 1', "2"='COM 2', "3"='COM 3'))) +
+  scale_fill_manual(values = IEcolors) + # magma
+  theme_grey(base_size = 14) +
+  ggtitle("Determism by IE and COM") +
+  xlab('Individual Effectivities')
+ggsave("./results/figures/exp_3-H4-plot_IExCOM.png", height = 5, width = 7)
+
+# interaction between TD and IE
+ggplot(mdrqa_raw) +
+  aes(x = TD, y = Determinism, fill = TD) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~IE, labeller = as_labeller(c("1"='IE 1', "2"='IE 2', "3"='IE 3'))) +
+  scale_fill_manual(values = TDcolors) + # magma
+  theme_grey(base_size = 14) +
+  ggtitle("Determism by TD and IE") +
+  xlab('Task Demand')
+ggsave("./results/figures/exp_3-H4-plot_TDxIE.png", height = 5, width = 7)
+
+# # interaction between TD, IE, and COM
+# ggplot(mdrqa_raw) +
+#   aes(x = TD, y = Determinism, fill = TD) +
+#   geom_boxplot() +
+#   scale_fill_manual(values = TDcolors) + # magma
+#   facet_grid(COM~IE, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"), IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
+#   theme_grey(base_size = 14) +
+#   ggtitle("Determism by TD, IE, and COM") +
+#   xlab('Task Demand')
+# ggsave("./results/figures/exp_3-H4-boxplot_TDxIExCOM.png", height = 5, width = 7)
+# 
+# # look at Time-Determinism relationship for TD and COM
+# ggplot(mdrqa_raw) +
+#   aes(x = Time, y = Determinism, color = TD) +
+#   geom_point() +
+#   scale_color_manual(values = TDcolors) + # magma
+#   facet_grid(~COM, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+#   theme_grey(base_size = 14) +
+#   ggtitle("Scatter of Time-Determinism Relationship by TD and COM") +
+#   xlab('Time')
+# ggsave("./results/figures/exp_3-H4-plot_scatter_TDxCOM.png", height = 5, width = 7)
+# 
+# # look at Time-Determinism relationship for TD and IE
+# ggplot(mdrqa_raw) +
+#   aes(x = Time, y = Determinism, color = TD) +
+#   geom_point() +
+#   scale_color_manual(values = TDcolors) + # magma
+#   facet_grid(~IE, labeller = labeller(IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
+#   theme_grey(base_size = 14) +
+#   ggtitle("Scatter of Time-Determinism Relationship by TD and IE") +
+#   xlab('Time')
+# ggsave("./results/figures/exp_3-H4-plot_scatter_TDxIE.png")
+
+# look at Time-Determinism relationship for IE and COM
+ggplot(mdrqa_raw) +
+  aes(x = Time, y = Determinism, fill = IE) +
+  geom_point(colour = "black", pch=21, size = 2.5) +
+  scale_fill_manual(values = IEcolors) + 
+  facet_grid(~COM, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+  theme_grey(base_size = 16) +
+  xlab('Task Completion Time') +
+  scale_x_continuous(breaks=c(3.0, 3.8, 4.5))
+ggsave("./results/figures/exp_3-H4-plot_scatter_IExCOM.png", height = 6, width = 8)
+
+```
+
+### Post-hoc
+
+```{r H4-posthoc, echo=FALSE}
+
+# post-hoc of IE*TD
+posthoc.ie.td <- (emmeans(coordination.model.raw, list(pairwise ~ TD*IE), adjust = "tukey"))[2]
+posthoc.ie.td.df <- as.data.frame(posthoc.ie.td)
+# add significance stars
+stars <- as.data.frame(stars.pval(posthoc.ie.td.df[,6]))
+posthoc.ie.td.df <- cbind(posthoc.ie.td.df, stars)
+# rename columns
+colnames(posthoc.ie.td.df) <- c("Pairwise Comparison", "Estimate", "Std. Error", "DF", "t-value", "Adjusted p-value", " ")
+posthoc.ie.td.df <- posthoc.ie.td.df %>% mutate_if(is.numeric, round, digits=3)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('round', 3)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+
+# build table
+pander(posthoc.ie.td.df, caption = "p < .10, * p < .05, ** p < .001")
+
+```
+
+## Hypothesis 6-7: Whole-team synchrony
+H6: Player-team and whole team synchrony will be strongest in the constrained communication condition. 
+H7: Player-team and whole team synchrony will be strongest in the bi-directional task switching condition. 
+
+### Model
+
+```{r H6-H7-teamsync-model, echo = FALSE}
+
+# raw model
+whole.team.model.raw = lmer(scale(mean_team_sync) ~ 
+                            TD*IE*COM*scale(Round) +
+                             (1 |Dyad),
+                           data=wide_raw, REML=FALSE)
+pander_lme(whole.team.model.raw, stats.caption = FALSE)
+#tab_model(whole.team.model.raw)
+
+# find residual DF for effect size calculation
+summary(whole.team.model.raw) # gives df.resid
+df.residual = df.residual(whole.team.model.raw) 
+
+# check out effect sizes
+effectsizes_H6_H7 <- as.data.frame(t_to_eta2(t = c(2.222 , 2.357),
+                                             df_error = c(df.residual,df.residual)))
+
+# build the effect size table
+colnames(effectsizes_H6_H7) <- c("Partial Eta2", "CI", "CI Low" , "CI High" )
+effectsizes_H6_H7 <- effectsizes_H6_H7 %>% mutate_if(is.numeric, round, digits=3) %>% 
+  select(-CI) %>%
+  mutate(Predictor = c("TD2:IE2:Round", "TD3:IE2:Round")) %>%
+  relocate(Predictor)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+# build table
+pander(effectsizes_H6_H7, caption = "")
+
+```
+
+### Plots
+
+```{r H6-H7-teamsync-plots, echo = FALSE}
+
+# # effect of TD
+# ggplot(wide_raw) +
+#   aes(x=TD, y=scale(mean_team_sync), fill = TD) + 
+#   geom_boxplot(show.legend = FALSE) +
+#   scale_fill_manual(values = TDcolors) +
+#   #ggtitle("Impact of Task Demand on Team Synchrony") +
+#   theme_grey(base_size = 12) +
+#   xlab('Task Demand') +
+#   ylab('Whole Team Synchrony')
+# ggsave("./results/figures/exp_3-teamsync-plot_TD.png")
+# 
+# # interaction between TD and IE
+# ggplot(wide_raw) +
+#   aes(x = TD, y = scale(mean_team_sync), fill = TD) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_wrap(~IE, labeller = as_labeller(c("1"='IE 1', "2"='IE 2', "3"='IE 3'))) +
+#   scale_fill_manual(values = TDcolors) + # magma
+#   #ggtitle("Impact of Task Demand and Individual Effectivities on Team Synchrony") +
+#   theme_grey(base_size = 14) +
+#   xlab('Task Demand') +
+#   ylab('Whole Team Synchrony')
+# ggsave("./results/figures/exp_3-teamsync-plot_TDxIE.png")
+
+# interaction between TD, IE, and Round
+ggplot(wide_raw) +
+  aes(x = as.factor(Round), y = scale(mean_team_sync), fill = as.factor(Round)) +
+  geom_boxplot() +
+  #scale_fill_manual(values = TDcolors) + # magma
+  facet_grid(TD~IE, labeller = labeller(TD = c('1'="TD 1", '2'="TD 2", '3'="TD 3"), IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
+  theme_grey(base_size = 14) +
+  ggtitle("Whole team synchrony by TD, IE, and Round") +
+  xlab('Round') +
+  ylab('Whole Team Synchrony')
+ggsave("./results/figures/exp_3-teamsync-boxplot_TDxIExRound.png", height = 5, width = 7)
+
+
+```
+
+### Post-hoc
+
+```{r H6-H7-teamsync-posthoc, echo=FALSE}
+
+# none needed
+
+```
+
+## Hypothesis 6-8: Player-team synchrony
+H6: Player-team and whole team synchrony will be strongest in the constrained communication condition. 
+H7: Player-team and whole team synchrony will be strongest in the bi-directional task switching condition (Condition 3). 
+H8: Player-team synchrony will be highest for those in the role of P2 during the unidirectional task switching condition (Condition 2).
+
+### Model
+
+```{r H6-H7-H8-model, echo = FALSE}
+
+# raw model
+player.team.model.raw = lmer(scale(deg_player_sync) ~ TD*IE*COM*PlayerType*scale(Round) +
+                              (1 | Dyad),
+                            data=long_raw, REML=FALSE)
+pander_lme(player.team.model.raw, stats.caption = FALSE)
+#tab_model(player.team.model.raw)
+
+# find residual DF for effect size calculation
+summary(player.team.model.raw) # gives df.resid
+df.residual = df.residual(player.team.model.raw) 
+
+# check out effect sizes
+effectsizes_H6_H8 <- as.data.frame(t_to_eta2(t = c(-2.754 , -3.119, 1.976,  3.278 , 2.291, 
+                                                   2.922, 2.028, -2.596, -2.755, -3.219, 
+                                                   -2.314, 2.537, -2.751, -1.982),
+                                             df_error = c(df.residual,df.residual,
+                                                          df.residual,df.residual,
+                                                          df.residual,df.residual,
+                                                          df.residual,df.residual,
+                                                          df.residual,df.residual,
+                                                          df.residual,df.residual,
+                                                          df.residual,df.residual)))
+
+# build the effect size table
+colnames(effectsizes_H6_H8) <- c("Partial Eta2", "CI", "CI Low" , "CI High" )
+effectsizes_H6_H8 <- effectsizes_H6_H8 %>% mutate_if(is.numeric, round, digits=3) %>% 
+  select(-CI) %>%
+  mutate(Predictor = c("IE2", "PlayerType2", "TD3:IE2",
+                       "IE2:COM1", "IE2:COM3", "IE2:PlayerType2", "COM1:PlayerType2",
+                       "TD3:IE2:COM3", "TD3:IE2:PlayerType2", "IE2:COM1:PlayerType2",
+                       "IE2:COM3:PlayerType2", "TD3:IE2:COM3:PlayerType2", "TD2:IE2:COM1:PlayerType2:Round", 
+                       "TD2:IE3:COM1:PlayerType2:Round")) %>%
+  relocate(Predictor)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+# build table
+pander(effectsizes_H6_H8, caption = "")
+
+```
+
+### Plots
+
+```{r H6-H7-H8-plots, each=FALSE}
+
+# # interaction between TD and IE
+# ggplot(long_raw) +
+#   aes(x = TD, y = scale(deg_player_sync), fill = TD) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_wrap(~IE, labeller = as_labeller(c("1"='IE 1', "2"='IE 2', "3"='IE 3'))) +
+#   scale_fill_manual(values = TDcolors) + # magma
+#   theme_grey(base_size = 16) +
+#   xlab('Task Demand')
+# ggsave("./results/figures/exp_3-playersync-plot_TDxIE.png")
+# 
+# # interaction between COM and IE
+# ggplot(long_raw) +
+#   aes(x = IE, y = scale(deg_player_sync), fill = IE) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_wrap(~COM, labeller = as_labeller(c("1"='COM 1', "2"='COM 2', "3"='COM 3'))) +
+#   scale_fill_manual(values = IEcolors) + # magma
+#   theme_grey(base_size = 14) +
+#   xlab('Individual Effectivities')
+# ggsave("./results/figures/exp_3-playersync-plot_IExCOM.png")
+# 
+# # interaction between TD and COM
+# ggplot(long_raw) +
+#   aes(x = TD, y = scale(deg_player_sync), fill = TD) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_wrap(~COM, labeller = as_labeller(c("1"='COM 1', "2"='COM 2', "3"='COM 3'))) +
+#   scale_fill_manual(values = TDcolors) + # magma
+#   theme_grey(base_size = 14) +
+#   xlab('Task Demand')
+# ggsave("./results/figures/exp_3-playersync-plot_TDxCOM.png")
+
+# interaction between COM and player type
+ggplot(long_raw) +
+  aes(x = COM, y = scale(deg_player_sync), fill = COM) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~PlayerType, labeller = as_labeller(c("1"='Restricted', "2"='Free'))) +
+  scale_fill_manual(values = TDcolors) + # magma
+  theme_grey(base_size = 14) +
+  xlab('Communication Condition')
+ggsave("./results/figures/exp_3-playersync-plot_COMxPlayerType.png")
+
+# interaction between TD and player type
+ggplot(long_raw) +
+  aes(x = TD, y = scale(deg_player_sync), fill = TD) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~PlayerType, labeller = as_labeller(c("1"='Restricted', "2"='Free'))) +
+  scale_fill_manual(values = TDcolors) + # magma
+  theme_grey(base_size = 14) +
+  xlab('Task Demand')
+ggsave("./results/figures/exp_3-playersync-plot_TDxPlayerType.png")
+
+# interaction between IE and player type
+ggplot(long_raw) +
+  aes(x = IE, y = scale(deg_player_sync), fill = IE) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~PlayerType, labeller = as_labeller(c("1"='Restricted', "2"='Free'))) +
+  scale_fill_manual(values = IEcolors) +
+  theme_grey(base_size = 14) +
+  xlab('Individual Effectivities') +
+  ylab('Player-Team Synchrony')
+ggsave("./results/figures/exp_3-playersync-plot_IExPlayerType.png", height = 5, width = 7)
+
+# interaction between player type, TD, and IE
+ggplot(long_raw) +
+  aes(x = TD, y = scale(deg_player_sync), fill = TD) +
+  geom_boxplot(show.legend = FALSE) +
+  facet_grid(PlayerType~IE, 
+             labeller = labeller(PlayerType = c('1'="P1", '2'="P2"), 
+                                 IE = c('1'="IE 1", '2'="IE 2", '3'="IE 3"))) +
+  scale_fill_manual(values = TDcolors) + # magma
+  theme_grey(base_size = 14) +
+  xlab('Task Demand') +
+  ylab('Player-Team Synchrony')
+ggsave("./results/figures/exp_3-playersync-plot_TDxIExPlayerType.png", height = 5, width = 7)
+
+# # interaction between player type, TD, and COM
+# ggplot(long_raw) +
+#   aes(x = TD, y = scale(deg_player_sync), fill = TD) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_grid(PlayerType~COM, 
+#              labeller = labeller(PlayerType = c('1'="P1", '2'="P2"),
+#                                  COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+#   scale_fill_manual(values = TDcolors) + # magma
+#   theme_grey(base_size = 14) +
+#   xlab('Task Demand')
+# ggsave("./results/figures/exp_3-playersync-plot_TDxCOMxPlayerType.png")
+# 
+# # interaction between player type, IE, and COM
+# ggplot(long_raw) +
+#   aes(x = IE, y = scale(deg_player_sync), fill = IE) +
+#   geom_boxplot(show.legend = FALSE) +
+#   facet_grid(PlayerType~COM,
+#              labeller = labeller(PlayerType = c('1'="P1", '2'="P2"),
+#                                  COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+#   scale_fill_manual(values = IEcolors) +
+#   theme_grey(base_size = 14) +
+#   xlab('Individual Effectivities')
+# ggsave("./results/figures/exp_3-playersync-plot_IExCOMxPlayerType.png")
+# 
+# # interaction between player type, IE, TD, and COM
+# ggplot(long_raw) +
+#   aes(x = TD, y = scale(deg_player_sync), fill = IE) +
+#   geom_boxplot(show.legend = TRUE) +
+#   facet_grid(PlayerType~COM, 
+#              labeller = labeller(PlayerType = c('1'="P1", '2'="P2"),
+#                                  COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+#   scale_fill_manual(values = IEcolors) + 
+#   theme_grey(base_size = 14) +
+#   xlab('Task Demand') +
+#   ylab('Whole Team Synchrony')
+# ggsave("./results/figures/exp_3-playersync-plot_TDxCOMxPlayerTypexIE.png")
+# 
+# # look at Time-Determinism relationship for TD and COM
+# ggplot(long_raw) +
+#   aes(x = Time, y = deg_player_sync, color = TD) +
+#   geom_point() +
+#   scale_color_manual(values = TDcolors) + # magma
+#   facet_grid(~COM, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+#   theme_grey(base_size = 14) +
+#   ggtitle("Scatter of Time-Determinism Relationship by TD and COM") +
+#   xlab('Time') +
+#   ylab('Player-Team Synchrony')
+# ggsave("./results/figures/exp_3-H4-plot_scatter_TDxCOM.png", height = 5, width = 7)
+
+# look at Time-Determinism relationship for IE, COM, and player type
+ggplot(long_raw) +
+  aes(x = log(Time), y = scale(deg_player_sync), fill = IE) +
+  geom_point(colour = "black", pch=21, size = 2) +
+  scale_fill_manual(values = IEcolors) + # magma
+  facet_grid(PlayerType~COM, labeller = labeller(PlayerType = c('1' = "P1", '2' = "P2"), COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+  theme_grey(base_size = 14) +
+  xlab('Task Completion Time') +
+  ylab('Player-Team Synchrony')
+ggsave("./results/figures/exp_3-H4-plot_scatter_IExCOMxPlayerType.png", height = 5, width = 7)
+
+# look at Time-Determinism relationship for TD, COM, and player type
+ggplot(long_raw) +
+  aes(x = log(Time), y = scale(deg_player_sync), color = TD) +
+  geom_point() +
+  scale_color_manual(values = TDcolors) + # magma
+  facet_grid(PlayerType~COM, labeller = labeller(PlayerType = c('1' = "P1", '2' = "P2"), COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+  theme_grey(base_size = 14) +
+  xlab('Task Completion Time') +
+  ylab('Player-Team Synchrony') +
+  scale_x_continuous(breaks=c(3.0, 3.8, 4.5))
+ggsave("./results/figures/exp_3-H4-plot_scatter_TDxCOMxPlayerType.png", height = 5, width = 7)
+
+# look at Time-PlayerTeamSync relationship for IE and COM
+ggplot(long_raw) +
+  aes(x = log(Time), y = scale(deg_player_sync), fill = IE) +
+  geom_point(colour = "black", pch=21, size = 2) +
+  scale_fill_manual(values = IEcolors) + 
+  facet_grid(~COM, labeller = labeller(COM = c('1'="COM 1", '2'="COM 2", '3'="COM 3"))) +
+  theme_grey(base_size = 16) +
+  xlab('Task Completion Time') +
+  ylab('Player-Team Synchronization') +
+  scale_x_continuous(breaks=c(3.0, 3.8, 4.5))
+ggsave("./results/figures/exp_3-playerteam-plot_scatter_IExCOM.png", height = 6, width = 8)
+
+```
+
+### Post-hoc: TD*PlayerType
+
+```{r H6-H7-H8-posthoc, echo=FALSE}
+
+# post-hoc of PlayerType*TD
+posthoc.td.pt <- (emmeans(player.team.model.raw, list(pairwise ~ TD*PlayerType), adjust = "tukey"))[2]
+posthoc.td.pt.df <- as.data.frame(posthoc.td.pt)
+# add significance stars
+stars <- as.data.frame(stars.pval(posthoc.td.pt.df[,6]))
+posthoc.td.pt.df <- cbind(posthoc.td.pt.df, stars)
+# rename columns
+colnames(posthoc.td.pt.df) <- c("Pairwise Comparison", "Estimate", "Std. Error", "DF", "t-value", "Adjusted p-value", " ")
+posthoc.td.pt.df <- posthoc.td.pt.df %>% mutate_if(is.numeric, round, digits=3)
+
+# set to not split table and round to two decimal places
+panderOptions("table.split.table", Inf)
+panderOptions('round', 3)
+panderOptions('keep.trailing.zeros', TRUE)
+# style for Rmd
+panderOptions("table.style", "rmarkdown")
+
+# build table
+pander(posthoc.td.pt.df, caption = "p < .10, * p < .05, ** p < .001")
+
+```
+
+## Post-hoc: Det-Time comparisons across Exp 2 and 3
+
+```{r exp2-exp3-det-time-comparisons, echo = FALSE}
+
+exp2_data = read.table('../exp_2/data/mdrqa_and_conditions.csv', 
+                       sep=',', header = TRUE)
+
+# create factors and rename variables
+exp2_data = exp2_data %>%
+  mutate(dyad = as.factor(dyad)) %>%
+  mutate(td_condition = as.factor(td_condition)) %>%
+  mutate(ie_condition = as.factor(ie_condition)) %>%
+  mutate(com_condition = as.factor(com_condition)) %>%
+  rename(TD = td_condition) %>% 
+  rename(IE = ie_condition) %>% 
+  rename(Determinism = DET) %>% 
+  rename(Time = timer) %>% 
+  rename(Dyad = dyad) %>% 
+  rename(Round = round_number) %>%
+  rename(COM = com_condition)
+
+# check out average round completion times and average determinism times
+exp2_det_time <- exp2_data %>%
+  select(Dyad, Round, TD, IE, COM, Determinism, Time)
+exp2_det_time$Experiment = as.factor(2)
+exp3_det_time <- mdrqa_raw %>%
+  select(Dyad, Round, TD, IE, COM, Determinism, Time2) %>%
+  rename(Time = Time2)
+exp3_det_time$Experiment = as.factor(3)
+
+# run t-tests to see if they were significantly different
+all_data <- rbind(exp2_det_time, exp3_det_time)
+res.time <- var.test(log(Time) ~ Experiment, data = all_data)
+t.test.time <- t.test(log(Time) ~ Experiment, data = all_data)
+summary(t.test.time)
+t.test.time.desc = all_data %>% 
+  group_by(Experiment) %>% summarise(mean = mean(Time), sd = sd(Time))
+
+# test for differences in determinism
+res.det <- var.test(Determinism ~ Experiment, data = all_data)
+t.test.det <- t.test(Determinism ~ Experiment, data = all_data)
+summary(t.test.det)
+t.test.det.desc = all_data %>% 
+  group_by(Experiment) %>% summarise(mean = mean(Determinism), sd = sd(Determinism))
+# test for differences in variability
+levene.det <- leveneTest(Determinism ~ Experiment, data = all_data)
+
+```
+
+### Post-hoc: Variability of COM across IE conditions
+
+``` {r post-hoc-variability}
+
+# subset the data
+data_COM12_IE1 <- mdrqa_raw %>% filter(COM == "1" | COM == "2") %>% filter(IE == "1")
+data_COM12_IE3 <- mdrqa_raw %>% filter(COM == "1" | COM == "2") %>% filter(IE == "3")
+data_COM23_IE1 <- mdrqa_raw %>% filter(COM == "2" | COM == "3") %>% filter(IE == "1")
+data_COM23_IE3 <- mdrqa_raw %>% filter(COM == "2" | COM == "3") %>% filter(IE == "3")
+
+# look at differences in IE variabiltiy between COM1 and COM2
+levene.com12.ie1 <- leveneTest(Determinism ~ COM, data = data_COM12_IE1)
+levene.com12.ie3 <- leveneTest(Determinism ~ COM, data = data_COM12_IE3)
+levene.com23.ie1 <- leveneTest(Determinism ~ COM, data = data_COM23_IE1)
+levene.com23.ie3 <- leveneTest(Determinism ~ COM, data = data_COM23_IE3)
+
+
+# subset the data by TD (across players)
+data_COM12_TD2 <- long_raw %>% filter(COM == "1" | COM == "2") %>% filter(TD == "2")
+data_COM23_TD2 <- long_raw %>% filter(COM == "2" | COM == "3") %>% filter(TD == "2")
+levene.com12.td2 <- leveneTest(deg_player_sync ~ COM, data = data_COM12_TD2)
+levene.com23.td2 <- leveneTest(deg_player_sync ~ COM, data = data_COM23_TD2)
+
+```
